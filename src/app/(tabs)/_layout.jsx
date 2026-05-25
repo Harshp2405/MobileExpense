@@ -3,8 +3,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 export default function TabLayout() {
   return (
-    <Tabs 
-      screenOptions={{ 
+    <Tabs
+      screenOptions={{
         tabBarActiveTintColor: "#2563EB",
         headerShown: false,
         tabBarStyle: {
@@ -12,28 +12,42 @@ export default function TabLayout() {
           borderTopColor: "#F3F4F6",
           elevation: 0,
           shadowOpacity: 0,
-        }
-      }}
-    >
+        },
+      }}>
       <Tabs.Screen
-        name="index"
+        name='index'
         options={{
           title: "Expenses",
-          tabBarIcon: ({ color }) => <Ionicons name="wallet-outline" size={24} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name='wallet-outline' size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="categories"
+        name='categories'
         options={{
           title: "Categories",
-          tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={24} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name='grid-outline' size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="budgets"
+        name='budgets'
         options={{
           title: "Budgets",
-          tabBarIcon: ({ color }) => <Ionicons name="pie-chart-outline" size={24} color={color} />,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name='pie-chart-outline' size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name='Analytics'
+        options={{
+          title: "Analytics",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name='bar-chart-outline' size={24} color={color} />
+          ),
         }}
       />
     </Tabs>

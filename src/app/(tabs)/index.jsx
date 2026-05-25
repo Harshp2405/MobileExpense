@@ -266,7 +266,7 @@ export default function ExpensesScreen() {
                     {item.title}
                   </Text>
                   <Text className='text-xs font-medium text-gray-500'>
-                    {item.category} • {item.date}
+                    {item.method} • {item.category} • {item.date}
                   </Text>
                 </View>
               </View>

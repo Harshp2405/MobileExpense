@@ -365,7 +365,6 @@ export default function BudgetsScreen() {
             </View>
           )}
           <View>
-            <Text>SectionList</Text>
             {/* SectionList */}
             <SectionList
               className=''
