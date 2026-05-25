@@ -248,7 +248,7 @@ export default function BudgetsScreen() {
                       Budget
                     </Text>
                     <Text className='text-3xl font-black text-gray-900'>
-                      ${budgetLimit.toFixed(2)}
+                      ₹{budgetLimit.toFixed(2)}
                     </Text>
                   </View>
                   <View className='items-end'>
@@ -257,7 +257,7 @@ export default function BudgetsScreen() {
                     </Text>
                     <Text
                       className={`text-2xl font-black ${isOver ? "text-red-500" : "text-green-500"}`}>
-                      ${Math.abs(remaining).toFixed(2)}
+                      ₹{Math.abs(remaining).toFixed(2)}
                     </Text>
                   </View>
                 </View>
@@ -276,7 +276,7 @@ export default function BudgetsScreen() {
 
                 <View className='flex-row justify-between'>
                   <Text className='text-xs text-gray-400 font-medium'>
-                    Spent: ${totalSpent.toFixed(2)}
+                    Spent: ₹{totalSpent.toFixed(2)}
                   </Text>
                   <Text className='text-xs text-gray-400 font-medium'>
                     {progress.toFixed(0)}% used
@@ -335,7 +335,7 @@ export default function BudgetsScreen() {
                         </Text>
                       </View>
                       <Text className='text-lg font-black text-gray-900'>
-                        ${cat.amount.toFixed(2)}
+                        ₹{cat.amount.toFixed(2)}
                       </Text>
                     </View>
 
@@ -416,7 +416,7 @@ export default function BudgetsScreen() {
                       {/* Amount */}
                       <View className='items-end ml-3'>
                         <Text className='text-[17px] font-black text-gray-900'>
-                          ${item.amount.toFixed(2)}
+                          ₹{item.amount.toFixed(2)}
                         </Text>
                       </View>
                     </View>

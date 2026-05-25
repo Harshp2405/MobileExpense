@@ -226,7 +226,7 @@ export default function ExpensesScreen() {
                     Total Spent
                   </Text>
                   <Text className='text-4xl font-black text-gray-900'>
-                    ${totalSpent.toFixed(2)}
+                    ₹{totalSpent.toFixed(2)}
                   </Text>
                 </View>
                 <View className='flex-row gap-2'>
@@ -271,7 +271,7 @@ export default function ExpensesScreen() {
                 </View>
               </View>
               <Text className='text-lg font-bold text-gray-900'>
-                ${item.amount.toFixed(2)}
+                ₹{item.amount.toFixed(2)}
               </Text>
             </TouchableOpacity>
           )}

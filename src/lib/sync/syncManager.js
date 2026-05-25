@@ -94,7 +94,7 @@ export const syncExpenses = async () => {
         );
 
         if (pullRes.ok) {
-          const { items, timestamp } = await pullRes.json();
+          const { items, timestamp, activeIds } = await pullRes.json();
           let currentList = JSON.parse(localStorage.getItem("expenses") || "[]");
 
           for (const item of items) {
@@ -126,6 +126,14 @@ export const syncExpenses = async () => {
                 createdAt: new Date().toISOString(),
               });
             }
+          }
+
+          // Deletion reconciliation: Filter out any items that have a remoteId but are not active on the server
+          if (activeIds && Array.isArray(activeIds)) {
+            currentList = currentList.filter(item => {
+              if (!item.remoteId || item.syncStatus === "pending") return true;
+              return activeIds.includes(item.remoteId);
+            });
           }
 
           localStorage.setItem("expenses", JSON.stringify(currentList));
@@ -185,7 +193,7 @@ export const syncExpenses = async () => {
     );
 
     if (pullRes.ok) {
-      const { items, timestamp } = await pullRes.json();
+      const { items, timestamp, activeIds } = await pullRes.json();
 
       for (const item of items) {
         // Check if this remote expense already exists locally
@@ -217,6 +225,17 @@ export const syncExpenses = async () => {
             method: item.method,
             syncStatus: "synced",
           });
+        }
+      }
+
+      // Deletion reconciliation: Delete local SQLite records that are synced but no longer exist on MongoDB
+      if (activeIds && Array.isArray(activeIds)) {
+        const localExpenses = await db.select().from(expenses);
+        for (const local of localExpenses) {
+          if (local.remoteId && local.syncStatus !== "pending" && !activeIds.includes(local.remoteId)) {
+            await db.delete(expenses).where(eq(expenses.id, local.id));
+            console.log(`[Sync] Deleted local expense (ID: ${local.id}) since it was deleted on the server`);
+          }
         }
       }
 
@@ -312,6 +331,13 @@ export const syncBudgets = async () => {
             }
           }
 
+          // Deletion reconciliation for Budgets
+          const serverMonths = items.map(b => b.month);
+          currentList = currentList.filter(local => {
+            if (!local.remoteId || local.syncStatus === "pending") return true;
+            return serverMonths.includes(local.month);
+          });
+
           localStorage.setItem("budgets", JSON.stringify(currentList));
           console.log(`[Sync Web] Pulled ${items.length} budgets from server`);
         }
@@ -387,6 +413,16 @@ export const syncBudgets = async () => {
             month: item.month,
             syncStatus: "synced",
           });
+        }
+      }
+
+      // Deletion reconciliation for budgets
+      const serverMonths = items.map(b => b.month);
+      const localBudgets = await db.select().from(budgets);
+      for (const local of localBudgets) {
+        if (local.remoteId && local.syncStatus !== "pending" && !serverMonths.includes(local.month)) {
+          await db.delete(budgets).where(eq(budgets.id, local.id));
+          console.log(`[Sync] Deleted local budget for ${local.month} since it was deleted on the server`);
         }
       }
 

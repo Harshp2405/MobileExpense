@@ -158,7 +158,7 @@ export const exportToPDF = async ({ expenses, monthName, year, totalSpent }) => 
       <div class="stats-container">
         <div class="stat-card">
           <div class="label">Total Spent</div>
-          <div class="value primary">$${totalSpent.toFixed(2)}</div>
+          <div class="value primary">₹${totalSpent.toFixed(2)}</div>
         </div>
         <div class="stat-card">
           <div class="label">Total Transactions</div>
@@ -186,7 +186,7 @@ export const exportToPDF = async ({ expenses, monthName, year, totalSpent }) => 
               <td><span class="tag tag-category">${e.category || 'Other'}</span></td>
               <td><span class="tag tag-method">${e.method || 'Cash'}</span></td>
               <td>${e.date}</td>
-              <td class="amount-val">$${e.amount.toFixed(2)}</td>
+              <td class="amount-val">₹${e.amount.toFixed(2)}</td>
             </tr>
           `).join('')}
         </tbody>
