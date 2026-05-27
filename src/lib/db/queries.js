@@ -40,7 +40,6 @@ export const addExpense = async ({
       const list = JSON.parse(localStorage.getItem("expenses") || "[]");
       const newExpense = {
         id: Date.now(),
-        remoteId: null,
         title,
         amount: Number(amount),
         category: category || "General",
@@ -48,7 +47,6 @@ export const addExpense = async ({
         description: description || "",
         month,
         method,
-        syncStatus: "pending",
         createdAt: new Date().toISOString(),
       };
       list.push(newExpense);
@@ -210,15 +208,11 @@ export const saveBudget = async ({ month, amount }) => {
       const idx = list.findIndex((b) => b.month === month);
       const newBudget = {
         id: Date.now(),
-        remoteId: null,
         month,
         amount: Number(amount),
-        syncStatus: "pending",
         createdAt: new Date().toISOString(),
       };
       if (idx > -1) {
-        // preserve remoteId if it exists
-        newBudget.remoteId = list[idx].remoteId || null;
         list[idx] = newBudget;
       } else {
         list.push(newBudget);

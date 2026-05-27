@@ -25,10 +25,10 @@ const getApiUrl = () => {
       ? "http://10.0.2.2:5000"
       : "http://localhost:5000";
   }
-  return "https://candelback-production.up.railway.app";
+  return process.env.EXPO_PUBLIC_API_URL || "https://candelback-production.up.railway.app";
 };
 
-const API_URL = getApiUrl();
+export const API_URL = getApiUrl();
 
 // ==========================================
 // 💸 SYNC EXPENSES

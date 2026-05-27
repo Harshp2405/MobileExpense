@@ -1,9 +1,10 @@
-import { Stack } from "expo-router";
+import { Drawer } from "expo-router/drawer";
 import "../../global.css";
 import { useEffect, useState } from "react";
 import { initDatabase } from "../lib/db/queries";
 import NetInfo from "@react-native-community/netinfo";
 import { syncAll } from "../lib/sync/syncManager";
+import CustomDrawerContent from "../components/CustomDrawer";
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
@@ -16,7 +17,6 @@ export default function RootLayout() {
         setDbReady(true);
       });
   }, []);
-
   // Auto-sync when device comes online
   useEffect(() => {
     if (!dbReady) return;
@@ -44,9 +44,49 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <Drawer
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: "#FFFFFF",
+        },
+        headerTitleStyle: {
+          fontWeight: "bold",
+          color: "#111827",
+        },
+        drawerActiveBackgroundColor:"#e28585ff",
+        
+        headerShadowVisible: false,
+      }}
+    >
+      <Drawer.Screen
+        name="(tabs)"
+        options={{
+          drawerLabel: "Dashboard",
+          title: "Overview",
+        }}
+      />
+      <Drawer.Screen
+        name="about"
+        options={{
+          drawerLabel: "App Architecture & Info",
+          title: "Technical Architecture",
+        }}
+      />
+      <Drawer.Screen
+        name="(tabt)"
+        options={{
+          drawerLabel: "Test",
+          title: "User Setting",
+        }}
+      />
+      <Drawer.Screen
+        name="index"
+        options={{
+          drawerItemStyle: { display: "none" },
+        }}
+      />
+    </Drawer>
   );
 }
 

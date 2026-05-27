@@ -5,7 +5,6 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        
         tabBarActiveTintColor: "#2563EB",
         headerShown: false,
         tabBarStyle: {
@@ -18,37 +17,27 @@ export default function TabLayout() {
       <Tabs.Screen
         name='index'
         options={{
-          
-          title: "Expenses",
+          title: "Index 2",
           tabBarIcon: ({ color }) => (
             <Ionicons name='wallet-outline' size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name='categories'
+        name='DataShow'
         options={{
-          title: "Categories",
+          title: "DataShow",
           tabBarIcon: ({ color }) => (
             <Ionicons name='grid-outline' size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name='budgets'
+        name='UserSettings'
         options={{
-          title: "Budgets",
+          title: "UserSettings",
           tabBarIcon: ({ color }) => (
             <Ionicons name='pie-chart-outline' size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name='Analytics'
-        options={{
-          title: "Analytics",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name='bar-chart-outline' size={24} color={color} />
           ),
         }}
       />
