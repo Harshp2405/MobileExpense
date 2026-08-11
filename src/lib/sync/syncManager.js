@@ -254,7 +254,6 @@ export const syncExpenses = async () => {
 // 📊 SYNC BUDGETS
 // Pushes pending local budgets → MongoDB
 // Pulls ALL budgets from server (no timestamps on Budget model)
-//
 // MongoDB Budget fields: month, amount
 // ==========================================
 
