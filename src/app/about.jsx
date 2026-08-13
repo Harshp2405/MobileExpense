@@ -50,7 +50,7 @@ export default function AboutScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerClassName="p-6 pb-12"
       >
-        {/* 🚀 Brand Hero Card */}
+
         <View className="bg-blue-600 rounded-3xl p-6 shadow-md mb-6 items-center">
           <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center mb-4">
             <Ionicons name="wallet" size={36} color="#FFFFFF" />
@@ -63,7 +63,6 @@ export default function AboutScreen() {
           </Text>
         </View>
 
-        {/* 🔄 Offline-First Sync Architecture Card */}
         <Text className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 ml-1">
           Technical Architecture
         </Text>
@@ -104,7 +103,7 @@ export default function AboutScreen() {
           </View>
         </View>
 
-        {/* 🛰️ Connection & Health Metrics */}
+
         <Text className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 ml-1">
           Server Health & Diagnostics
         </Text>
