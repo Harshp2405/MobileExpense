@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mobile",
-    "slug": "expense",
+    "slug": "expensetracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -28,7 +28,8 @@
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -66,7 +67,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "38af7a80-a20d-4158-9d8d-a44993f974d9"
+        "projectId": "880b205f-de76-42f0-9dbe-4ff35823ad1c"
       }
     },
     "owner": "harsh_1224"
