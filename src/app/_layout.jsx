@@ -5,9 +5,12 @@ import { initDatabase } from "../lib/db/queries";
 import NetInfo from "@react-native-community/netinfo";
 import { syncAll } from "../lib/sync/syncManager";
 import CustomDrawerContent from "../components/CustomDrawer";
+import { useThemePersist } from "../lib/utils/useThemePersist";
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
+  const { colorScheme } = useThemePersist();
+  const isDark = colorScheme === "dark";
 
   useEffect(() => {
     initDatabase()
@@ -48,14 +51,19 @@ export default function RootLayout() {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerStyle: {
-          backgroundColor: "#FFFFFF",
+          backgroundColor: isDark ? "#111827" : "#FFFFFF",
         },
         headerTitleStyle: {
           fontWeight: "bold",
-          color: "#111827",
+          color: isDark ? "#F9FAFB" : "#111827",
         },
-        drawerActiveBackgroundColor:"#e28585ff",
-        
+        drawerActiveBackgroundColor: "#e28585ff",
+        drawerStyle: {
+          backgroundColor: isDark ? "#111827" : "#FFFFFF",
+        },
+        drawerLabelStyle: {
+          color: isDark ? "#F9FAFB" : "#111827",
+        },
         headerShadowVisible: false,
       }}
     >

@@ -77,7 +77,7 @@ export default function CategoriesScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900">
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#2563EB" />
@@ -88,7 +88,7 @@ export default function CategoriesScreen() {
           contentContainerClassName="p-5"
           ListHeaderComponent={
             <View className="flex-row justify-between items-center mb-6 mt-2">
-              <Text className="text-3xl font-black text-gray-900">Categories</Text>
+              <Text className="text-3xl font-black text-gray-900 dark:text-gray-100">Categories</Text>
               <TouchableOpacity onPress={() => setModalVisible(true)} className="bg-blue-600 w-10 h-10 rounded-full items-center justify-center shadow-sm">
                 <Ionicons name="add" size={24} color="white" />
               </TouchableOpacity>
@@ -97,25 +97,25 @@ export default function CategoriesScreen() {
           ListEmptyComponent={
             <View className="items-center justify-center py-20 w-full">
               <Ionicons name="folder-open-outline" size={64} color="#D1D5DB" />
-              <Text className="text-gray-400 mt-4 text-base font-medium">No categories added</Text>
+              <Text className="text-gray-400 dark:text-gray-500 mt-4 text-base font-medium">No categories added</Text>
             </View>
           }
           numColumns={2}
           columnWrapperClassName="gap-4"
           keyExtractor={item => item.id.toString()}
           renderItem={({ item }) => (
-            <View className="bg-white p-4 rounded-3xl mb-4 shadow-sm border border-gray-100 flex-1 items-center justify-center py-8 relative">
+            <View className="bg-white dark:bg-zinc-800 p-4 rounded-3xl mb-4 shadow-sm border border-gray-100 dark:border-zinc-700 flex-1 items-center justify-center py-8 relative">
               <TouchableOpacity
                 onPress={() => handleDelete(item.id, item.name)}
-                className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-red-50 items-center justify-center shadow-sm"
+                className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 items-center justify-center shadow-sm"
               >
                 <Ionicons name="trash-outline" size={16} color="#EF4444" />
               </TouchableOpacity>
 
-              <View className="w-14 h-14 rounded-full items-center justify-center mb-3 bg-blue-50">
+              <View className="w-14 h-14 rounded-full items-center justify-center mb-3 bg-blue-50 dark:bg-blue-900/30">
                 <Ionicons name="folder" size={28} color={item.color || "#3B82F6"} />
               </View>
-              <Text className="text-base font-bold text-gray-900">{item.name}</Text>
+              <Text className="text-base font-bold text-gray-900 dark:text-gray-100">{item.name}</Text>
             </View>
           )}
         />
@@ -123,10 +123,10 @@ export default function CategoriesScreen() {
 
       {/* Add Category Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40">
-          <View className="bg-white rounded-t-3xl p-6">
+        <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+          <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
             <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-bold text-gray-900">New Category</Text>
+              <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">New Category</Text>
               <TouchableOpacity onPress={() => { resetForm(); setModalVisible(false); }}>
                 <Ionicons name="close" size={24} color="#6B7280" />
               </TouchableOpacity>

@@ -12,6 +12,7 @@ import { useRouter, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getExpensesByMonth, getBudgetByMonth } from "../lib/db/queries";
 import { syncAll } from "../lib/sync/syncManager";
+import { useColorScheme } from "nativewind";
 
 const MENU_ITEMS = [
   { name: "Dashboard", icon: "wallet-outline", activeIcon: "wallet", route: "/(tabs)" },
@@ -26,6 +27,8 @@ export default function CustomDrawerContent(props) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const [totalSpent, setTotalSpent] = useState(0);
   const [budgetLimit, setBudgetLimit] = useState(0);
@@ -94,17 +97,17 @@ export default function CustomDrawerContent(props) {
 
   // Set colors based on budget exhaust
   let progressColor = "bg-blue-600";
-  let textBadgeColor = "text-blue-600 bg-blue-50";
+  let textBadgeColor = "text-blue-600 bg-blue-50 dark:bg-blue-900/30";
   if (progressRatio >= 0.9) {
     progressColor = "bg-red-500";
-    textBadgeColor = "text-red-600 bg-red-50";
+    textBadgeColor = "text-red-600 bg-red-50 dark:bg-red-900/30";
   } else if (progressRatio >= 0.75) {
     progressColor = "bg-amber-500";
-    textBadgeColor = "text-amber-600 bg-amber-50";
+    textBadgeColor = "text-amber-600 bg-amber-50 dark:bg-amber-900/30";
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white dark:bg-zinc-900">
       {/* 👤 Profile Banner */}
       <View
         style={{ paddingTop: insets.top + 20 }}
@@ -131,13 +134,13 @@ export default function CustomDrawerContent(props) {
 
       <ScrollView showsVerticalScrollIndicator={false} className="flex-1 px-4">
         {/* 📊 Real-Time Spent Progress Widget */}
-        <View className="bg-gray-50 border border-gray-100 rounded-3xl p-5 mb-6">
+        <View className="bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-3xl p-5 mb-6">
           <View className="flex-row justify-between items-center mb-3">
             <View>
-              <Text className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-0.5">
+              <Text className="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mb-0.5">
                 {currentMonthName} Spent
               </Text>
-              <Text className="text-gray-900 text-lg font-black">
+              <Text className="text-gray-900 dark:text-gray-100 text-lg font-black">
                 ₹{totalSpent.toFixed(2)}
               </Text>
             </View>
@@ -147,7 +150,7 @@ export default function CustomDrawerContent(props) {
           </View>
 
           {/* Progress Bar Container */}
-          <View className="h-2 bg-gray-200 rounded-full mb-3 overflow-hidden">
+          <View className="h-2 bg-gray-200 dark:bg-zinc-700 rounded-full mb-3 overflow-hidden">
             <View
               style={{ width: `${progressPercent}%` }}
               className={`h-full rounded-full ${progressColor}`}
@@ -155,10 +158,10 @@ export default function CustomDrawerContent(props) {
           </View>
 
           <View className="flex-row justify-between items-center">
-            <Text className="text-gray-400 text-xs font-semibold">
+            <Text className="text-gray-400 dark:text-gray-500 text-xs font-semibold">
               Limit: ₹{budgetLimit.toFixed(0)}
             </Text>
-            <Text className="text-gray-600 text-xs font-bold">
+            <Text className="text-gray-600 dark:text-gray-400 text-xs font-bold">
               ₹{remaining.toFixed(0)} left
             </Text>
           </View>
@@ -176,19 +179,19 @@ export default function CustomDrawerContent(props) {
                   router.push(item.route);
                 }}
                 className={`flex-row items-center p-4 rounded-2xl mb-1.5 transition-all ${
-                  active ? "bg-blue-50/80 border border-blue-100/50" : "bg-transparent border border-transparent"
+                  active ? "bg-blue-50/80 dark:bg-blue-900/30 border border-blue-100/50 dark:border-blue-800/50" : "bg-transparent border border-transparent"
                 }`}
               >
                 <View className="mr-4">
                   <Ionicons
                     name={active ? item.activeIcon : item.icon}
                     size={22}
-                    color={active ? "#2563EB" : "#6B7280"}
+                    color={active ? "#2563EB" : isDark ? "#9CA3AF" : "#6B7280"}
                   />
                 </View>
                 <Text
                   className={`text-sm font-bold flex-1 ${
-                    active ? "text-blue-600" : "text-gray-700"
+                    active ? "text-blue-600" : "text-gray-700 dark:text-gray-300"
                   }`}
                 >
                   {item.name}
@@ -202,14 +205,14 @@ export default function CustomDrawerContent(props) {
         </View>
 
         {/* 🔄 Interactive Manual Sync Section */}
-        <View className="bg-gray-50 border border-gray-100 rounded-3xl p-5 mb-8">
+        <View className="bg-gray-50 dark:bg-zinc-800 border border-gray-100 dark:border-zinc-700 rounded-3xl p-5 mb-8">
           <View className="flex-row items-center mb-3">
-            <Ionicons name="cloud-upload-outline" size={20} color="#4B5563" />
-            <Text className="text-gray-800 text-sm font-bold ml-2">
+            <Ionicons name="cloud-upload-outline" size={20} color={isDark ? '#9CA3AF' : '#4B5563'} />
+            <Text className="text-gray-800 dark:text-gray-200 text-sm font-bold ml-2">
               Cloud Synchronization
             </Text>
           </View>
-          <Text className="text-gray-500 text-xs leading-relaxed mb-4">
+          <Text className="text-gray-500 dark:text-gray-400 text-xs leading-relaxed mb-4">
             Manually trigger data synchronization to back up all expenses and budgets to MongoDB cloud server.
           </Text>
 
@@ -241,12 +244,12 @@ export default function CustomDrawerContent(props) {
       {/* 🤖 Footer */}
       <View
         style={{ paddingBottom: insets.bottom + 20 }}
-        className="px-6 pt-4 border-t border-gray-100 items-center bg-gray-50/50"
+        className="px-6 pt-4 border-t border-gray-100 dark:border-zinc-800 items-center bg-gray-50/50 dark:bg-zinc-900"
       >
-        <Text className="text-gray-400 text-[11px] font-bold tracking-widest uppercase">
+        <Text className="text-gray-400 dark:text-gray-500 text-[11px] font-bold tracking-widest uppercase">
           Expense Tracker Pro
         </Text>
-        <Text className="text-gray-400 text-[10px] font-semibold mt-0.5">
+        <Text className="text-gray-400 dark:text-gray-500 text-[10px] font-semibold mt-0.5">
           v1.0.0 • Production Ready
         </Text>
       </View>

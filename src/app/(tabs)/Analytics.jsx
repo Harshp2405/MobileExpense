@@ -15,6 +15,7 @@ import { useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { PieChart, BarChart } from "react-native-gifted-charts";
 import { getExpensesByMonth, getCategories } from "../../lib/db/queries";
+import { useColorScheme } from "nativewind";
 
 const screenWidth = Dimensions.Dimensions?.get
   ? Dimensions.Dimensions.get("window").width
@@ -55,6 +56,8 @@ const METHOD_COLORS = {
 };
 
 export default function AnalyticsScreen() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [loading, setLoading] = useState(true);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -148,14 +151,14 @@ export default function AnalyticsScreen() {
   const topCategory = categoryData[0] || null;
 
   return (
-		<SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
+		<SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900" edges={["top"]}>
 			{/* HEADER SECTION */}
-			<View className="bg-white px-6 pt-4 pb-5 border-b border-gray-100 shadow-sm flex-row justify-between items-center">
+			<View className="bg-white dark:bg-zinc-800 px-6 pt-4 pb-5 border-b border-gray-100 dark:border-zinc-700 shadow-sm flex-row justify-between items-center">
 				<View>
-					<Text className="text-2xl font-black text-gray-900 tracking-tight">
+					<Text className="text-2xl font-black text-gray-900 dark:text-gray-100 tracking-tight">
 						Analytics
 					</Text>
-					<Text className="text-xs font-semibold text-gray-400 mt-0.5">
+					<Text className="text-xs font-semibold text-gray-400 dark:text-gray-500 mt-0.5">
 						Visualize your spending habits
 					</Text>
 				</View>
@@ -164,20 +167,20 @@ export default function AnalyticsScreen() {
 				<View className="flex-row gap-2">
 					<TouchableOpacity
 						onPress={() => setMonthPickerVisible(true)}
-						className="flex-row items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 shadow-sm">
-						<Text className="text-xs font-bold text-gray-700 mr-1.5">
+						className="flex-row items-center bg-gray-50 dark:bg-zinc-700 px-3 py-2 rounded-xl border border-gray-100 dark:border-zinc-600 shadow-sm">
+						<Text className="text-xs font-bold text-gray-700 dark:text-gray-300 mr-1.5">
 							{MONTHS[selectedMonth].substring(0, 3)}
 						</Text>
-						<Ionicons name="chevron-down" size={12} color="#4B5563" />
+						<Ionicons name="chevron-down" size={12} color={isDark ? '#9CA3AF' : '#4B5563'} />
 					</TouchableOpacity>
 
 					<TouchableOpacity
 						onPress={() => setYearPickerVisible(true)}
-						className="flex-row items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-100 shadow-sm">
-						<Text className="text-xs font-bold text-gray-700 mr-1.5">
+						className="flex-row items-center bg-gray-50 dark:bg-zinc-700 px-3 py-2 rounded-xl border border-gray-100 dark:border-zinc-600 shadow-sm">
+						<Text className="text-xs font-bold text-gray-700 dark:text-gray-300 mr-1.5">
 							{selectedYear}
 						</Text>
-						<Ionicons name="chevron-down" size={12} color="#4B5563" />
+						<Ionicons name="chevron-down" size={12} color={isDark ? '#9CA3AF' : '#4B5563'} />
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -191,13 +194,13 @@ export default function AnalyticsScreen() {
 				</View>
 			) : expenses.length === 0 ? (
 				<View className="flex-1 items-center justify-center px-8">
-					<View className="w-20 h-20 bg-blue-50 rounded-full items-center justify-center mb-5">
+					<View className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full items-center justify-center mb-5">
 						<Ionicons name="bar-chart-outline" size={40} color="#2563EB" />
 					</View>
-					<Text className="text-xl font-bold text-gray-900 text-center mb-2">
+					<Text className="text-xl font-bold text-gray-900 dark:text-gray-100 text-center mb-2">
 						No Expense Records
 					</Text>
-					<Text className="text-sm font-medium text-gray-400 text-center leading-relaxed">
+					<Text className="text-sm font-medium text-gray-400 dark:text-gray-500 text-center leading-relaxed">
 						There are no expenses logged for {MONTHS[selectedMonth]}{" "}
 						{selectedYear} yet. Log some expenses to view insights!
 					</Text>
@@ -230,22 +233,22 @@ export default function AnalyticsScreen() {
 					{/* INSIGHT MINI-CARDS */}
 					{topCategory && (
 						<View className="px-6 pt-4 flex-row gap-4">
-							<View className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex-row items-center">
-								<View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-red-50">
-									<Ionicons
-										name="trending-up-outline"
-										size={20}
-										color="#EF4444"
-									/>
-								</View>
-								<View className="flex-1">
-									<Text className="text-gray-400 text-[10px] font-bold uppercase tracking-wider">
-										Highest Area
-									</Text>
-									<Text className="text-gray-900 text-sm font-black truncate">
-										{topCategory.name}
-									</Text>
-									<Text className="text-gray-500 text-xs font-bold">
+						<View className="flex-1 bg-white dark:bg-zinc-800 p-4 rounded-2xl border border-gray-100 dark:border-zinc-700 shadow-sm flex-row items-center">
+							<View className="w-10 h-10 rounded-full items-center justify-center mr-3 bg-red-50 dark:bg-red-900/30">
+								<Ionicons
+									name="trending-up-outline"
+									size={20}
+									color="#EF4444"
+								/>
+							</View>
+							<View className="flex-1">
+								<Text className="text-gray-400 dark:text-gray-500 text-[10px] font-bold uppercase tracking-wider">
+									Highest Area
+								</Text>
+								<Text className="text-gray-900 dark:text-gray-100 text-sm font-black truncate">
+									{topCategory.name}
+								</Text>
+								<Text className="text-gray-500 dark:text-gray-400 text-xs font-bold">
 										₹{topCategory.value.toFixed(0)} (
 										{topCategory.percentage.toFixed(0)}%)
 									</Text>
@@ -256,8 +259,8 @@ export default function AnalyticsScreen() {
 					<View className="flex-1 flex-row">
 						{/* CATEGORY BREAKDOWN CHART */}
 						<View className="px-6 pt-5">
-							<View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-								<Text className="text-base font-black text-gray-900 mb-5">
+<View className="bg-white dark:bg-zinc-800 p-6 rounded-3xl border border-gray-100 dark:border-zinc-700 shadow-sm">
+							<Text className="text-base font-black text-gray-900 dark:text-gray-100 mb-5">
 									Category Breakdown
 								</Text>
 

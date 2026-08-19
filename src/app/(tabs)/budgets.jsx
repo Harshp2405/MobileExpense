@@ -24,6 +24,7 @@ import {
 } from "../../lib/db/queries";
 import { convertToSectionList } from "@/lib/utils/helperFunctions";
 import { syncAll } from "../../lib/sync/syncManager";
+import { useColorScheme } from "nativewind";
 
 const MONTHS = [
   "January",
@@ -46,6 +47,8 @@ const MONTHS = [
 const YEARS = Array.from({ length: 101 }, (_, i) => 2025 + i);
 
 export default function BudgetsScreen() {
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [budget, setBudget] = useState(null);
   const [totalSpent, setTotalSpent] = useState(0);
   const [spentByCategory, setSpentByCategory] = useState([]);
@@ -193,7 +196,7 @@ export default function BudgetsScreen() {
   const isNearLimit = progress > 80;
 
   return (
-    <SafeAreaView className='flex-1 bg-gray-50'>
+    <SafeAreaView className='flex-1 bg-gray-50 dark:bg-zinc-900'>
       {loading ?
         <View className='flex-1 items-center justify-center'>
           <ActivityIndicator size='large' color='#2563EB' />
@@ -203,25 +206,25 @@ export default function BudgetsScreen() {
           <View className='flex-row gap-3 mb-6'>
             <TouchableOpacity
               onPress={() => setMonthPickerVisible(true)}
-              className='flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
-              <Text className='text-gray-800 text-sm font-semibold'>
+              className='flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
+              <Text className='text-gray-800 dark:text-gray-200 text-sm font-semibold'>
                 {MONTHS[selectedMonth]}
               </Text>
-              <Ionicons name='chevron-down' size={18} color='#9CA3AF' />
+              <Ionicons name='chevron-down' size={18} color={isDark ? '#6B7280' : '#9CA3AF'} />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setYearPickerVisible(true)}
-              className='flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
-              <Text className='text-gray-800 text-sm font-semibold'>
+              className='flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
+              <Text className='text-gray-800 dark:text-gray-200 text-sm font-semibold'>
                 {selectedYear}
               </Text>
-              <Ionicons name='chevron-down' size={18} color='#9CA3AF' />
+              <Ionicons name='chevron-down' size={18} color={isDark ? '#6B7280' : '#9CA3AF'} />
             </TouchableOpacity>
           </View>
 
           <View className='flex-row justify-between items-center mb-6'>
-            <Text className='text-3xl font-black text-gray-900'>
+            <Text className='text-3xl font-black text-gray-900 dark:text-gray-100'>
               {MONTHS[selectedMonth]} {selectedYear}
             </Text>
             <TouchableOpacity
@@ -239,15 +242,15 @@ export default function BudgetsScreen() {
           </View>
 
           {/* Budget Overview Card */}
-          <View className='bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-6'>
+          <View className='bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-zinc-700 mb-6'>
             {budget ?
               <View>
                 <View className='flex-row justify-between items-end mb-4'>
                   <View>
-                    <Text className='text-xs font-medium text-gray-400 uppercase tracking-wider mb-1'>
+                    <Text className='text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1'>
                       Budget
                     </Text>
-                    <Text className='text-3xl font-black text-gray-900'>
+                    <Text className='text-3xl font-black text-gray-900 dark:text-gray-100'>
                       ₹{budgetLimit.toFixed(2)}
                     </Text>
                   </View>
