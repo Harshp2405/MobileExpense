@@ -25,6 +25,8 @@ import {
 import { convertToSectionList } from "@/lib/utils/helperFunctions";
 import { syncAll } from "../../lib/sync/syncManager";
 import { useColorScheme } from "nativewind";
+import { date } from "drizzle-orm/mysql-core";
+
 
 const MONTHS = [
   "January",
@@ -201,7 +203,7 @@ export default function BudgetsScreen() {
         <View className='flex-1 items-center justify-center'>
           <ActivityIndicator size='large' color='#2563EB' />
         </View>
-      : <ScrollView contentContainerClassName='p-5'>
+        : <ScrollView contentContainerClassName='p-5'>
           {/* Year and Month Pickers */}
           <View className='flex-row gap-3 mb-6'>
             <TouchableOpacity
@@ -268,11 +270,10 @@ export default function BudgetsScreen() {
                 {/* Progress Bar */}
                 <View className='h-3 w-full bg-gray-100 rounded-full overflow-hidden mb-3'>
                   <View
-                    className={`h-full rounded-full ${
-                      isOver ? "bg-red-500"
-                      : isNearLimit ? "bg-amber-500"
-                      : "bg-green-500"
-                    }`}
+                    className={`h-full rounded-full ${isOver ? "bg-red-500"
+                        : isNearLimit ? "bg-amber-500"
+                          : "bg-green-500"
+                      }`}
                     style={{ width: `${progress}%` }}
                   />
                 </View>
@@ -286,7 +287,7 @@ export default function BudgetsScreen() {
                   </Text>
                 </View>
               </View>
-            : <View className='items-center py-6'>
+              : <View className='items-center py-6'>
                 <Ionicons name='wallet-outline' size={48} color='#D1D5DB' />
                 <Text className='text-gray-400 mt-3 text-base font-medium'>
                   No budget set for {MONTHS[selectedMonth]} {selectedYear}
@@ -369,101 +370,113 @@ export default function BudgetsScreen() {
           )}
           <View>
             {/* SectionList */}
-            <SectionList
-              className=''
-              sections={first}
-              keyExtractor={(item, index) => item.id ?? String(index)}
-              renderItem={({ item, section }) => {
-                if (!sectionDrop[section.title]) {
-                  return null;
-                }
-                return (
-                  <>
-                    <View
-                      activeOpacity={0.85}
-                      className='bg-white px-4 py-4 rounded-3xl mb-2 border border-gray-100 flex-row items-center justify-between shadow-sm'>
-                      {/* Left Content */}
-                      <View className='flex-row items-center flex-1'>
-                        {/* Icon */}
-                        <View className='w-14 h-14 bg-blue-50 rounded-2xl items-center justify-center mr-4'>
-                          <Ionicons
-                            name='clipboard-outline'
-                            size={26}
-                            color='#2563EB'
-                          />
-                        </View>
+            <View className="mt-2">
+              {first.map((section) => (
+                <View key={section.title} className="mb-3">
 
-                        {/* Text */}
-                        <View className='flex-1'>
-                          <Text
-                            numberOfLines={1}
-                            className='text-[15px] font-extrabold text-gray-900'>
-                            {item.title}
-                          </Text>
-
-                          <View className='flex-row items-center mt-1'>
-                            <Ionicons
-                              name='calendar-outline'
-                              size={12}
-                              color='#9CA3AF'
-                            />
-
-                            <Text className='text-xs font-medium text-gray-500 ml-1'>
-                              {item.date}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* Amount */}
-                      <View className='items-end ml-3'>
-                        <Text className='text-[17px] font-black text-gray-900'>
-                          ₹{item.amount.toFixed(2)}
-                        </Text>
-                      </View>
-                    </View>
-                  </>
-                );
-              }}
-              renderSectionHeader={({ section }) => (
-                <Pressable
-                  style={({ pressed }) => ({
-                    opacity: pressed ? 0.5 : 1,
-                    backgroundColor: pressed ? "#e60b0bff" : "#14a14aff",
-                  })}
-                  onPress={() => {
-                    setsectionDrop((prev) => ({
-                      ...prev,
-                      [section.title]: !prev[section.title],
-                    }));
-                  }}
-                  className='p-5 rounded-3xl mb-3 shadow-sm border border-gray-100/80'
+                  {/* CATEGORY HEADER */}
+                  <Pressable
+                    onPress={() => {
+                      setsectionDrop((prev) => ({
+                        ...prev,
+                        [section.title]: !prev[section.title],
+                      }));
+                    }}
+                    style={({ pressed }) => ({
+                      opacity: pressed ? 0.7 : 1,
+                    })}
+                    className="bg-white dark:bg-zinc-800 p-5 rounded-3xl border border-gray-100 dark:border-zinc-700 shadow-sm"
                   >
-                  <View className='flex-row justify-between items-start'>
-                    <View className='flex-1 pr-4'>
-                      <View className='flex-row items-center gap-2'>
+                    <View className="flex-row justify-between items-center">
+
+                      <View className="flex-row items-center flex-1">
                         <View
-                          className='w-3 h-3 rounded-full'
-                          style={{ backgroundColor: "#14B8A6" }}
+                          className="w-3 h-3 rounded-full mr-2"
+                          style={{
+                            backgroundColor:
+                              categoryColors[section.title] || "#14B8A6",
+                          }}
                         />
-                        <Text className='text-base font-black text-gray-900'>
+
+                        <Text
+                          numberOfLines={1}
+                          className="text-base font-black text-gray-900 dark:text-gray-100"
+                        >
                           {section.title}
                         </Text>
                       </View>
+
+                      <Ionicons
+                        name={
+                          sectionDrop[section.title]
+                            ? "chevron-up"
+                            : "chevron-down"
+                        }
+                        size={14}
+                        color={isDark ? "#9CA3AF" : "#9CA3AF"}
+                      />
                     </View>
-                    <View className='flex-row items-center mt-1'>
-                      {sectionDrop[section.title] ?
-                        <Ionicons name='chevron-up' size={12} color='#9CA3AF' />
-                      : <Ionicons
-                          name='chevron-down'
-                          size={12}
-                          color='#9CA3AF'
-                        />
-                      }
+                  </Pressable>
+
+                  {/* EXPENSES */}
+                  {sectionDrop[section.title] && (
+                    <View className="mt-2">
+
+                      {section.data?.map((item, index) => (
+                        <View
+                          key={item.id ?? `${section.title}-${index}`}
+                          className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-2xl mb-2 border border-gray-100 dark:border-zinc-700"
+                        >
+                          <View className="flex-row items-center justify-between">
+
+                            {/* LEFT */}
+                            <View className="flex-row items-center flex-1 mr-3">
+
+                              <View className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl items-center justify-center mr-3">
+                                <Ionicons
+                                  name="receipt-outline"
+                                  size={18}
+                                  color="#2563EB"
+                                />
+                              </View>
+
+                              <View className="flex-1">
+                                <Text
+                                  numberOfLines={1}
+                                  className="text-sm font-bold text-gray-900 dark:text-gray-100"
+                                >
+                                  {item.title}
+                                </Text>
+
+                                <View className="flex-row items-center mt-1">
+                                  <Ionicons
+                                    name="calendar-outline"
+                                    size={11}
+                                    color="#9CA3AF"
+                                  />
+
+                                  <Text className="text-xs text-gray-400 ml-1">
+                                    {item.date}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+
+                            {/* AMOUNT */}
+                            <Text className="text-sm font-black text-gray-900 dark:text-gray-100">
+                              ₹{Number(item.amount).toFixed(2)}
+                            </Text>
+
+                          </View>
+                        </View>
+                      ))}
+
                     </View>
-                  </View>
-                </Pressable>
-              )}></SectionList>
+                  )}
+                </View>
+              ))}
+            </View>
+
 
             {/* Simple DropDown */}
           </View>

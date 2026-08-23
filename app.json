@@ -12,8 +12,10 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Used to scan receipts and capture expense images.",
         "NSPhotoLibraryUsageDescription": "Used to pick images for expense receipts.",
-        "NSMicrophoneUsageDescription": "Required by camera for video capture."
-      }
+        "NSMicrophoneUsageDescription": "Required by camera for video capture.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.anonymous.Mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -58,7 +60,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
