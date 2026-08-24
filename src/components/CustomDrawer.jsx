@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getExpensesByMonth, getBudgetByMonth } from "../lib/db/queries";
 import { syncAll } from "../lib/sync/syncManager";
 import { useColorScheme } from "nativewind";
+import { useThemePersist } from "../lib/utils/useThemePersist";
 
 const MENU_ITEMS = [
   { name: "Dashboard", icon: "wallet-outline", activeIcon: "wallet", route: "/(tabs)" },
@@ -29,6 +30,7 @@ export default function CustomDrawerContent(props) {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
+  const { toggle } = useThemePersist();
 
   const [totalSpent, setTotalSpent] = useState(0);
   const [budgetLimit, setBudgetLimit] = useState(0);
@@ -241,11 +243,24 @@ export default function CustomDrawerContent(props) {
         </View>
       </ScrollView>
 
-      {/* 🤖 Footer */}
+      {/* Footer */}
       <View
         style={{ paddingBottom: insets.bottom + 20 }}
         className="px-6 pt-4 border-t border-gray-100 dark:border-zinc-800 items-center bg-gray-50/50 dark:bg-zinc-900"
       >
+        <TouchableOpacity
+          onPress={toggle}
+          className="flex-row items-center bg-gray-100 dark:bg-zinc-800 px-4 py-2.5 rounded-full mb-3 border border-gray-200 dark:border-zinc-700"
+        >
+          <Ionicons
+            name={isDark ? "sunny-outline" : "moon-outline"}
+            size={16}
+            color={isDark ? "#FBBF24" : "#6B7280"}
+          />
+          <Text className="text-xs font-bold text-gray-700 dark:text-gray-300 ml-2">
+            {isDark ? "Light Mode" : "Dark Mode"}
+          </Text>
+        </TouchableOpacity>
         <Text className="text-gray-400 dark:text-gray-500 text-[11px] font-bold tracking-widest uppercase">
           Expense Tracker Pro
         </Text>

@@ -151,7 +151,9 @@ export default function AnalyticsScreen() {
 	const topCategory = categoryData[0] || null;
 
 	return (
-		<SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900" edges={["top"]}>
+		<SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900" 
+		//edges={["top"]}
+		>
 			{/* HEADER SECTION */}
 			<View className="bg-white dark:bg-zinc-800 px-6 pt-4 pb-5 border-b border-gray-100 dark:border-zinc-700 shadow-sm flex-row justify-between items-center">
 				<View>
