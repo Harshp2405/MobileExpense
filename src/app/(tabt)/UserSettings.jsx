@@ -6,7 +6,7 @@ import { useThemePersist } from "../../lib/utils/useThemePersist";
 const THEME_OPTIONS = [
   { key: "light", label: "Light", icon: "sunny-outline" },
   { key: "dark", label: "Dark", icon: "moon-outline" },
-  { key: "system", label: "System", icon: "phone-portrait-outline" },
+  // { key: "system", label: "System", icon: "phone-portrait-outline" },
 ];
 
 export default function UserSettings() {
