@@ -8,6 +8,8 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -284,7 +286,8 @@ export default function ExpensesScreen() {
 
       {/* Add Expense Modal */}
       <Modal visible={modalVisible} animationType='slide' transparent>
-        <View className='flex-1 justify-end bg-black/40 dark:bg-black/60'>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View className='flex-1 justify-end bg-black/40 dark:bg-black/60'>
           <View className='bg-white dark:bg-zinc-800 rounded-t-3xl p-6 max-h-[85%]'>
             <View className='flex-row justify-between items-center mb-6'>
               <Text className='text-xl font-bold text-gray-900 dark:text-gray-100'>
@@ -397,7 +400,8 @@ export default function ExpensesScreen() {
               <View className='h-8' />
             </ScrollView>
           </View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Month Picker Modal */}

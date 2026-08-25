@@ -53,6 +53,7 @@ export default function RootLayout() {
         headerStyle: {
           backgroundColor: isDark ? "#111827" : "#FFFFFF",
         },
+        headerTintColor: isDark ? "#F9FAFB" : "#111827",
         headerTitleStyle: {
           fontWeight: "bold",
           color: isDark ? "#F9FAFB" : "#111827",

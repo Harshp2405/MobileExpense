@@ -14,7 +14,7 @@ export function useThemePersist() {
 				setColorScheme(saved);
 			}
 		})();
-	}, []);
+	}, [setColorScheme]);
 
 	const setTheme = useCallback(
 		async (mode) => {

@@ -12,7 +12,6 @@ import { useRouter, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getExpensesByMonth, getBudgetByMonth } from "../lib/db/queries";
 import { syncAll } from "../lib/sync/syncManager";
-import { useColorScheme } from "nativewind";
 import { useThemePersist } from "../lib/utils/useThemePersist";
 
 const MENU_ITEMS = [
@@ -28,9 +27,8 @@ export default function CustomDrawerContent(props) {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, toggle } = useThemePersist();
   const isDark = colorScheme === "dark";
-  const { toggle } = useThemePersist();
 
   const [totalSpent, setTotalSpent] = useState(0);
   const [budgetLimit, setBudgetLimit] = useState(0);
