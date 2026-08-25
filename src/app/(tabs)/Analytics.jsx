@@ -270,9 +270,9 @@ export default function AnalyticsScreen() {
 									<PieChart
 										data={pieData}
 										donut
-										focusOnPress
+										
 										radius={screenWidth * 0.27}
-										innerRadius={screenWidth * 0.17}
+										innerRadius={screenWidth * 0.14}
 										showText
 										textColor="white"
 										textSize={12}
@@ -326,9 +326,8 @@ export default function AnalyticsScreen() {
 						{/* <View className="flex-1 flex-col"> */}
 						{/* PAYMENT METHOD WISE CHART */}
 						<View className="px-6 pt-5">
-							<View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-								<Text className="text-base font-black text-gray-900 mb-5">
-									Payment Methods
+						<View className="bg-white dark:bg-zinc-800 p-6 rounded-3xl border border-gray-100 dark:border-zinc-700 shadow-sm">
+							<Text className="text-base font-black text-gray-900 dark:text-gray-100 mb-5">
 								</Text>
 
 								<View className="items-center justify-center mt-2">
@@ -361,16 +360,16 @@ export default function AnalyticsScreen() {
 									{methodData.map((item, index) => (
 										<View
 											key={index}
-											className="w-[47%] bg-gray-50 p-3 rounded-2xl border border-gray-100 flex-row items-center">
-											<View
-												className="w-3 h-3 rounded-full mr-2"
-												style={{ backgroundColor: item.frontColor }}
-											/>
-											<View>
-												<Text className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-													{item.label}
-												</Text>
-												<Text className="text-sm font-black text-gray-900">
+										className="w-[47%] bg-gray-50 dark:bg-zinc-700 p-3 rounded-2xl border border-gray-100 dark:border-zinc-600 flex-row items-center">
+										<View
+											className="w-3 h-3 rounded-full mr-2"
+											style={{ backgroundColor: item.frontColor }}
+										/>
+										<View>
+											<Text className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+												{item.label}
+											</Text>
+											<Text className="text-sm font-black text-gray-900 dark:text-gray-100">
 													₹{item.value.toFixed(0)}
 												</Text>
 											</View>
@@ -386,14 +385,14 @@ export default function AnalyticsScreen() {
 
 			{/* MONTH PICKER MODAL */}
 			<Modal visible={monthPickerVisible} animationType="slide" transparent>
-				<View className="flex-1 justify-end bg-black/40">
-					<View className="bg-white rounded-t-3xl p-6 h-[400px]">
+				<View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+					<View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6 h-[400px]">
 						<View className="flex-row justify-between items-center mb-6">
-							<Text className="text-xl font-bold text-gray-900">
+							<Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
 								Select Month
 							</Text>
 							<TouchableOpacity onPress={() => setMonthPickerVisible(false)}>
-								<Ionicons name="close" size={24} color="#6B7280" />
+								<Ionicons name="close" size={24} color={isDark ? '#9CA3AF' : '#6B7280'} />
 							</TouchableOpacity>
 						</View>
 
@@ -409,10 +408,10 @@ export default function AnalyticsScreen() {
 									}}
 									className={`p-4 rounded-xl items-center mb-2 border ${selectedMonth === index
 											? "bg-blue-600 border-blue-600"
-											: "bg-gray-50 border-gray-100"
+											: "bg-gray-50 dark:bg-zinc-700 border-gray-100 dark:border-zinc-600"
 										}`}>
 									<Text
-										className={`font-bold ${selectedMonth === index ? "text-white" : "text-gray-700"
+										className={`font-bold ${selectedMonth === index ? "text-white" : "text-gray-700 dark:text-gray-300"
 											}`}>
 										{item}
 									</Text>
@@ -425,14 +424,14 @@ export default function AnalyticsScreen() {
 
 			{/* YEAR PICKER MODAL */}
 			<Modal visible={yearPickerVisible} animationType="slide" transparent>
-				<View className="flex-1 justify-end bg-black/40">
-					<View className="bg-white rounded-t-3xl p-6 h-[400px]">
+				<View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+					<View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6 h-[400px]">
 						<View className="flex-row justify-between items-center mb-6">
-							<Text className="text-xl font-bold text-gray-900">
+							<Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
 								Select Year
 							</Text>
 							<TouchableOpacity onPress={() => setYearPickerVisible(false)}>
-								<Ionicons name="close" size={24} color="#6B7280" />
+								<Ionicons name="close" size={24} color={isDark ? '#9CA3AF' : '#6B7280'} />
 							</TouchableOpacity>
 						</View>
 
@@ -448,10 +447,10 @@ export default function AnalyticsScreen() {
 									}}
 									className={`p-4 rounded-xl items-center mb-2 border ${selectedYear === item
 											? "bg-blue-600 border-blue-600"
-											: "bg-gray-50 border-gray-100"
+											: "bg-gray-50 dark:bg-zinc-700 border-gray-100 dark:border-zinc-600"
 										}`}>
 									<Text
-										className={`font-bold ${selectedYear === item ? "text-white" : "text-gray-700"
+										className={`font-bold ${selectedYear === item ? "text-white" : "text-gray-700 dark:text-gray-300"
 											}`}>
 										{item}
 									</Text>

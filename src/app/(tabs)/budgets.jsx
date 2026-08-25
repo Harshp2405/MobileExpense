@@ -10,6 +10,8 @@ import {
   Alert,
   SectionList,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -198,115 +200,133 @@ export default function BudgetsScreen() {
   const isNearLimit = progress > 80;
 
   return (
-    <SafeAreaView className='flex-1 bg-gray-50 dark:bg-zinc-900'>
-      {loading ?
-        <View className='flex-1 items-center justify-center'>
-          <ActivityIndicator size='large' color='#2563EB' />
+    <SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900">
+      {loading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#2563EB" />
         </View>
-        : <ScrollView contentContainerClassName='p-5'>
+      ) : (
+        <ScrollView contentContainerClassName="p-5">
           {/* Year and Month Pickers */}
-          <View className='flex-row gap-3 mb-6'>
+          <View className="flex-row gap-3 mb-6">
             <TouchableOpacity
               onPress={() => setMonthPickerVisible(true)}
-              className='flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
-              <Text className='text-gray-800 dark:text-gray-200 text-sm font-semibold'>
+              className="flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm"
+            >
+              <Text className="text-gray-800 dark:text-gray-200 text-sm font-semibold">
                 {MONTHS[selectedMonth]}
               </Text>
-              <Ionicons name='chevron-down' size={18} color={isDark ? '#6B7280' : '#9CA3AF'} />
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={isDark ? "#6B7280" : "#9CA3AF"}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setYearPickerVisible(true)}
-              className='flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm'>
-              <Text className='text-gray-800 dark:text-gray-200 text-sm font-semibold'>
+              className="flex-1 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 flex-row justify-between items-center shadow-sm"
+            >
+              <Text className="text-gray-800 dark:text-gray-200 text-sm font-semibold">
                 {selectedYear}
               </Text>
-              <Ionicons name='chevron-down' size={18} color={isDark ? '#6B7280' : '#9CA3AF'} />
+              <Ionicons
+                name="chevron-down"
+                size={18}
+                color={isDark ? "#6B7280" : "#9CA3AF"}
+              />
             </TouchableOpacity>
           </View>
 
-          <View className='flex-row justify-between items-center mb-6'>
-            <Text className='text-3xl font-black text-gray-900 dark:text-gray-100'>
+          <View className="flex-row justify-between items-center mb-6">
+            <Text className="text-3xl font-black text-gray-900 dark:text-gray-100">
               {MONTHS[selectedMonth]} {selectedYear}
             </Text>
             <TouchableOpacity
               onPress={openModal}
-              className='bg-blue-600 px-4 py-2.5 rounded-full flex-row items-center gap-1.5'>
+              className="bg-blue-600 px-4 py-2.5 rounded-full flex-row items-center gap-1.5"
+            >
               <Ionicons
                 name={budget ? "create-outline" : "add"}
                 size={18}
-                color='white'
+                color="white"
               />
-              <Text className='text-white font-bold text-sm'>
+              <Text className="text-white font-bold text-sm">
                 {budget ? "Edit" : "Set"} Budget
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Budget Overview Card */}
-          <View className='bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-zinc-700 mb-6'>
-            {budget ?
+          <View className="bg-white dark:bg-zinc-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-zinc-700 mb-6">
+            {budget ? (
               <View>
-                <View className='flex-row justify-between items-end mb-4'>
+                <View className="flex-row justify-between items-end mb-4">
                   <View>
-                    <Text className='text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1'>
+                    <Text className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
                       Budget
                     </Text>
-                    <Text className='text-3xl font-black text-gray-900 dark:text-gray-100'>
+                    <Text className="text-3xl font-black text-gray-900 dark:text-gray-100">
                       ₹{budgetLimit.toFixed(2)}
                     </Text>
                   </View>
-                  <View className='items-end'>
-                    <Text className='text-xs font-medium text-gray-400 uppercase tracking-wider mb-1'>
+                  <View className="items-end">
+                    <Text className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-1">
                       {isOver ? "Over by" : "Remaining"}
                     </Text>
                     <Text
-                      className={`text-2xl font-black ${isOver ? "text-red-500" : "text-green-500"}`}>
+                      className={`text-2xl font-black ${isOver ? "text-red-500" : "text-green-500"}`}
+                    >
                       ₹{Math.abs(remaining).toFixed(2)}
                     </Text>
                   </View>
                 </View>
 
                 {/* Progress Bar */}
-                <View className='h-3 w-full bg-gray-100 rounded-full overflow-hidden mb-3'>
+                <View className="h-3 w-full bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden mb-3">
                   <View
-                    className={`h-full rounded-full ${isOver ? "bg-red-500"
-                        : isNearLimit ? "bg-amber-500"
+                    className={`h-full rounded-full ${
+                      isOver
+                        ? "bg-red-500"
+                        : isNearLimit
+                          ? "bg-amber-500"
                           : "bg-green-500"
-                      }`}
+                    }`}
                     style={{ width: `${progress}%` }}
                   />
                 </View>
 
-                <View className='flex-row justify-between'>
-                  <Text className='text-xs text-gray-400 font-medium'>
+                <View className="flex-row justify-between">
+                  <Text className="text-xs text-gray-400 font-medium">
                     Spent: ₹{totalSpent.toFixed(2)}
                   </Text>
-                  <Text className='text-xs text-gray-400 font-medium'>
+                  <Text className="text-xs text-gray-400 font-medium">
                     {progress.toFixed(0)}% used
                   </Text>
                 </View>
               </View>
-              : <View className='items-center py-6'>
-                <Ionicons name='wallet-outline' size={48} color='#D1D5DB' />
-                <Text className='text-gray-400 mt-3 text-base font-medium'>
+            ) : (
+              <View className="items-center py-6">
+                <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
+                <Text className="text-gray-400 mt-3 text-base font-medium">
                   No budget set for {MONTHS[selectedMonth]} {selectedYear}
                 </Text>
                 <TouchableOpacity
                   onPress={openModal}
-                  className='mt-3 bg-blue-600 px-5 py-2.5 rounded-full'>
-                  <Text className='text-white font-bold text-sm'>
+                  className="mt-3 bg-blue-600 px-5 py-2.5 rounded-full"
+                >
+                  <Text className="text-white font-bold text-sm">
                     Set Budget
                   </Text>
                 </TouchableOpacity>
               </View>
-            }
+            )}
           </View>
 
           {/* Spending Breakdown */}
           {spentByCategory.length > 0 && (
-            <View className='mt-2 mb-8'>
-              <Text className='text-xl font-black text-gray-900 mb-4'>
+            <View className="mt-2 mb-8">
+              <Text className="text-xl font-black text-gray-900 dark:text-gray-100 mb-4">
                 Spending Breakdown
               </Text>
 
@@ -320,33 +340,34 @@ export default function BudgetsScreen() {
                 return (
                   <View
                     key={cat.name}
-                    className='bg-white p-5 rounded-3xl mb-4 shadow-sm border border-gray-100/80'>
-                    <View className='flex-row justify-between items-start mb-3'>
-                      <View className='flex-1 pr-4'>
-                        <View className='flex-row items-center gap-2'>
+                    className="bg-white dark:bg-zinc-800 p-5 rounded-3xl mb-4 shadow-sm border border-gray-100/80 dark:border-zinc-700"
+                  >
+                    <View className="flex-row justify-between items-start mb-3">
+                      <View className="flex-1 pr-4">
+                        <View className="flex-row items-center gap-2">
                           <View
-                            className='w-3 h-3 rounded-full'
+                            className="w-3 h-3 rounded-full"
                             style={{ backgroundColor: color }}
                           />
-                          <Text className='text-base font-black text-gray-900'>
+                          <Text className="text-base font-black text-gray-900 dark:text-gray-100">
                             {cat.name}
                           </Text>
                         </View>
-                        <Text className='text-xs text-gray-400 font-semibold mt-1'>
+                        <Text className="text-xs text-gray-400 font-semibold mt-1">
                           {cat.count}{" "}
                           {cat.count === 1 ? "transaction" : "transactions"} •{" "}
                           {pctOfTotal.toFixed(0)}% of total spent
                         </Text>
                       </View>
-                      <Text className='text-lg font-black text-gray-900'>
+                      <Text className="text-lg font-black text-gray-900 dark:text-gray-100">
                         ₹{cat.amount.toFixed(2)}
                       </Text>
                     </View>
 
                     {/* Progress Bar */}
-                    <View className='h-2.5 w-full bg-gray-100 rounded-full overflow-hidden'>
+                    <View className="h-2.5 w-full bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                       <View
-                        className='h-full rounded-full'
+                        className="h-full rounded-full"
                         style={{
                           width: `${Math.min(catProgress, 100)}%`,
                           backgroundColor: color,
@@ -356,8 +377,8 @@ export default function BudgetsScreen() {
 
                     {/* Progress percentage details if budget exists */}
                     {budgetLimit > 0 && (
-                      <View className='flex-row justify-between mt-2'>
-                        <Text className='text-[10px] text-gray-400 font-semibold uppercase tracking-wider'>
+                      <View className="flex-row justify-between mt-2">
+                        <Text className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
                           Budget Share:{" "}
                           {((cat.amount / budgetLimit) * 100).toFixed(0)}%
                         </Text>
@@ -373,7 +394,6 @@ export default function BudgetsScreen() {
             <View className="mt-2">
               {first.map((section) => (
                 <View key={section.title} className="mb-3">
-
                   {/* CATEGORY HEADER */}
                   <Pressable
                     onPress={() => {
@@ -388,7 +408,6 @@ export default function BudgetsScreen() {
                     className="bg-white dark:bg-zinc-800 p-5 rounded-3xl border border-gray-100 dark:border-zinc-700 shadow-sm"
                   >
                     <View className="flex-row justify-between items-center">
-
                       <View className="flex-row items-center flex-1">
                         <View
                           className="w-3 h-3 rounded-full mr-2"
@@ -421,17 +440,14 @@ export default function BudgetsScreen() {
                   {/* EXPENSES */}
                   {sectionDrop[section.title] && (
                     <View className="mt-2">
-
                       {section.data?.map((item, index) => (
                         <View
                           key={item.id ?? `${section.title}-${index}`}
                           className="bg-white dark:bg-zinc-800 px-4 py-3 rounded-2xl mb-2 border border-gray-100 dark:border-zinc-700"
                         >
                           <View className="flex-row items-center justify-between">
-
                             {/* LEFT */}
                             <View className="flex-row items-center flex-1 mr-3">
-
                               <View className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl items-center justify-center mr-3">
                                 <Ionicons
                                   name="receipt-outline"
@@ -466,76 +482,81 @@ export default function BudgetsScreen() {
                             <Text className="text-sm font-black text-gray-900 dark:text-gray-100">
                               ₹{Number(item.amount).toFixed(2)}
                             </Text>
-
                           </View>
                         </View>
                       ))}
-
                     </View>
                   )}
                 </View>
               ))}
             </View>
 
-
             {/* Simple DropDown */}
           </View>
         </ScrollView>
-      }
+      )}
 
       {/* Set/Edit Budget Modal */}
-      <Modal visible={modalVisible} animationType='slide' transparent>
-        <View className='flex-1 justify-end bg-black/40'>
-          <View className='bg-white rounded-t-3xl p-6'>
-            <View className='flex-row justify-between items-center mb-6'>
-              <Text className='text-xl font-bold text-gray-900'>
-                {budget ? "Edit" : "Set"} Budget for {MONTHS[selectedMonth]}{" "}
-                {selectedYear}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+            <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  {budget ? "Edit" : "Set"} Budget for {MONTHS[selectedMonth]}{" "}
+                  {selectedYear}
+                </Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={isDark ? "#9CA3AF" : "#6B7280"}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                Monthly Budget Limit *
               </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name='close' size={24} color='#6B7280' />
+              <TextInput
+                value={budgetAmount}
+                onChangeText={setBudgetAmount}
+                placeholder="1500.00"
+                keyboardType="numeric"
+                className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-6"
+                placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
+                autoFocus
+              />
+
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving}
+                className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}
+              >
+                <Text className="text-white font-bold text-base">
+                  {saving ? "Saving..." : "Save Budget"}
+                </Text>
               </TouchableOpacity>
+
+              <View className="h-4" />
             </View>
-
-            <Text className='text-sm font-semibold text-gray-700 mb-1.5'>
-              Monthly Budget Limit *
-            </Text>
-            <TextInput
-              value={budgetAmount}
-              onChangeText={setBudgetAmount}
-              placeholder='1500.00'
-              keyboardType='numeric'
-              className='bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-6'
-              placeholderTextColor='#9CA3AF'
-              autoFocus
-            />
-
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={saving}
-              className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}>
-              <Text className='text-white font-bold text-base'>
-                {saving ? "Saving..." : "Save Budget"}
-              </Text>
-            </TouchableOpacity>
-
-            <View className='h-4' />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Month Picker Modal */}
-      <Modal visible={monthPickerVisible} transparent animationType='fade'>
+      <Modal visible={monthPickerVisible} transparent animationType="fade">
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => setMonthPickerVisible(false)}
-          className='flex-1 justify-center items-center bg-black/40 px-6'>
-          <View className='bg-white w-full max-h-[70%] rounded-3xl p-6 shadow-xl'>
-            <Text className='text-lg font-bold text-gray-900 mb-4 text-center'>
+          className="flex-1 justify-center items-center bg-black/40 dark:bg-black/60 px-6"
+        >
+          <View className="bg-white dark:bg-zinc-800 w-full max-h-[70%] rounded-3xl p-6 shadow-xl">
+            <Text className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 text-center">
               Select Month
             </Text>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View className='flex-row flex-wrap gap-2 justify-center'>
+              <View className="flex-row flex-wrap gap-2 justify-center">
                 {MONTHS.map((m, idx) => (
                   <TouchableOpacity
                     key={m}
@@ -543,9 +564,11 @@ export default function BudgetsScreen() {
                       setSelectedMonth(idx);
                       setMonthPickerVisible(false);
                     }}
-                    className={`w-[45%] p-4 rounded-2xl items-center border ${selectedMonth === idx ? "bg-blue-600 border-blue-600" : "bg-gray-50 border-gray-100"}`}>
+                    className={`w-[45%] p-4 rounded-2xl items-center border ${selectedMonth === idx ? "bg-blue-600 border-blue-600" : "bg-gray-50 dark:bg-zinc-700 border-gray-100 dark:border-zinc-600"}`}
+                  >
                     <Text
-                      className={`font-semibold ${selectedMonth === idx ? "text-white" : "text-gray-700"}`}>
+                      className={`font-semibold ${selectedMonth === idx ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                    >
                       {m}
                     </Text>
                   </TouchableOpacity>
@@ -557,13 +580,14 @@ export default function BudgetsScreen() {
       </Modal>
 
       {/* Year Picker Modal */}
-      <Modal visible={yearPickerVisible} transparent animationType='fade'>
+      <Modal visible={yearPickerVisible} transparent animationType="fade">
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => setYearPickerVisible(false)}
-          className='flex-1 justify-center items-center bg-black/40 px-6'>
-          <View className='bg-white w-full max-h-[75%] rounded-3xl p-6 shadow-xl'>
-            <Text className='text-lg font-bold text-gray-900 mb-4 text-center'>
+          className="flex-1 justify-center items-center bg-black/40 dark:bg-black/60 px-6"
+        >
+          <View className="bg-white dark:bg-zinc-800 w-full max-h-[75%] rounded-3xl p-6 shadow-xl">
+            <Text className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 text-center">
               Select Year
             </Text>
             <FlatList
@@ -576,9 +600,11 @@ export default function BudgetsScreen() {
                     setSelectedYear(item);
                     setYearPickerVisible(false);
                   }}
-                  className={`p-4 rounded-xl items-center mb-2 border ${selectedYear === item ? "bg-blue-600 border-blue-600" : "bg-gray-50 border-gray-100"}`}>
+                  className={`p-4 rounded-xl items-center mb-2 border ${selectedYear === item ? "bg-blue-600 border-blue-600" : "bg-gray-50 dark:bg-zinc-700 border-gray-100 dark:border-zinc-600"}`}
+                >
                   <Text
-                    className={`font-bold ${selectedYear === item ? "text-white" : "text-gray-700"}`}>
+                    className={`font-bold ${selectedYear === item ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                  >
                     {item}
                   </Text>
                 </TouchableOpacity>
