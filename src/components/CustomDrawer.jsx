@@ -16,9 +16,9 @@ import { useThemePersist } from "../lib/utils/useThemePersist";
 
 const MENU_ITEMS = [
   { name: "Dashboard", icon: "wallet-outline", activeIcon: "wallet", route: "/(tabs)" },
-  { name: "Analytics Dashboard", icon: "bar-chart-outline", activeIcon: "bar-chart", route: "/(tabs)/Analytics" },
-  { name: "Budget Planning", icon: "pie-chart-outline", activeIcon: "pie-chart", route: "/(tabs)/budgets" },
-  { name: "Category Management", icon: "grid-outline", activeIcon: "grid", route: "/(tabs)/categories" },
+  // { name: "Analytics Dashboard", icon: "bar-chart-outline", activeIcon: "bar-chart", route: "/(tabs)/Analytics" },
+  // { name: "Budget Planning", icon: "pie-chart-outline", activeIcon: "pie-chart", route: "/(tabs)/budgets" },
+  // { name: "Category Management", icon: "grid-outline", activeIcon: "grid", route: "/(tabs)/categories" },
   { name: "App Architecture & Info", icon: "information-circle-outline", activeIcon: "information-circle", route: "/about" },
   { name: "Test", icon: "information-circle-outline", activeIcon: "information-circle", route: "/(tabt)" },
 ];
@@ -97,13 +97,16 @@ export default function CustomDrawerContent(props) {
 
   // Set colors based on budget exhaust
   let progressColor = "bg-blue-600";
-  let textBadgeColor = "text-blue-600 bg-blue-50 dark:bg-blue-900/30";
+  let badgeBg = "bg-blue-50 dark:bg-blue-900/30";
+  let badgeText = "text-blue-600 dark:text-blue-400";
   if (progressRatio >= 0.9) {
     progressColor = "bg-red-500";
-    textBadgeColor = "text-red-600 bg-red-50 dark:bg-red-900/30";
+    badgeBg = "bg-red-50 dark:bg-red-900/30";
+    badgeText = "text-red-600 dark:text-red-400";
   } else if (progressRatio >= 0.75) {
     progressColor = "bg-amber-500";
-    textBadgeColor = "text-amber-600 bg-amber-50 dark:bg-amber-900/30";
+    badgeBg = "bg-amber-50 dark:bg-amber-900/30";
+    badgeText = "text-amber-600 dark:text-amber-400";
   }
 
   return (
@@ -144,8 +147,8 @@ export default function CustomDrawerContent(props) {
                 ₹{totalSpent.toFixed(2)}
               </Text>
             </View>
-            <View className={`px-2.5 py-1 rounded-full ${textBadgeColor}`}>
-              <Text className="text-xs font-bold">{progressPercent}%</Text>
+            <View className={`px-2.5 py-1 rounded-full ${badgeBg}`}>
+              <Text className={`text-xs font-bold ${badgeText}`}>{progressPercent}%</Text>
             </View>
           </View>
 

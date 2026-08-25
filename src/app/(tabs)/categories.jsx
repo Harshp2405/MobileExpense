@@ -1,4 +1,4 @@
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
@@ -88,8 +88,13 @@ export default function CategoriesScreen() {
           contentContainerClassName="p-5"
           ListHeaderComponent={
             <View className="flex-row justify-between items-center mb-6 mt-2">
-              <Text className="text-3xl font-black text-gray-900 dark:text-gray-100">Categories</Text>
-              <TouchableOpacity onPress={() => setModalVisible(true)} className="bg-blue-600 w-10 h-10 rounded-full items-center justify-center shadow-sm">
+              <Text className="text-3xl font-black text-gray-900 dark:text-gray-100">
+                Categories
+              </Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(true)}
+                className="bg-blue-600 w-10 h-10 rounded-full items-center justify-center shadow-sm"
+              >
                 <Ionicons name="add" size={24} color="white" />
               </TouchableOpacity>
             </View>
@@ -97,12 +102,14 @@ export default function CategoriesScreen() {
           ListEmptyComponent={
             <View className="items-center justify-center py-20 w-full">
               <Ionicons name="folder-open-outline" size={64} color="#D1D5DB" />
-              <Text className="text-gray-400 dark:text-gray-500 mt-4 text-base font-medium">No categories added</Text>
+              <Text className="text-gray-400 dark:text-gray-500 mt-4 text-base font-medium">
+                No categories added
+              </Text>
             </View>
           }
           numColumns={2}
           columnWrapperClassName="gap-4"
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
             <View className="bg-white dark:bg-zinc-800 p-4 rounded-3xl mb-4 shadow-sm border border-gray-100 dark:border-zinc-700 flex-1 items-center justify-center py-8 relative">
               <TouchableOpacity
@@ -113,9 +120,15 @@ export default function CategoriesScreen() {
               </TouchableOpacity>
 
               <View className="w-14 h-14 rounded-full items-center justify-center mb-3 bg-blue-50 dark:bg-blue-900/30">
-                <Ionicons name="folder" size={28} color={item.color || "#3B82F6"} />
+                <Ionicons
+                  name="folder"
+                  size={28}
+                  color={item.color || "#3B82F6"}
+                />
               </View>
-              <Text className="text-base font-bold text-gray-900 dark:text-gray-100">{item.name}</Text>
+              <Text className="text-base font-bold text-gray-900 dark:text-gray-100">
+                {item.name}
+              </Text>
             </View>
           )}
         />
@@ -123,49 +136,66 @@ export default function CategoriesScreen() {
 
       {/* Add Category Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
-          <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
-            <View className="flex-row justify-between items-center mb-6">
-              <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">New Category</Text>
-              <TouchableOpacity onPress={() => { resetForm(); setModalVisible(false); }}>
-                <Ionicons name="close" size={24} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            <Text className="text-sm font-semibold text-gray-700 mb-1.5">Name *</Text>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Food, Transport"
-              className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-5"
-              placeholderTextColor="#9CA3AF"
-            />
-
-            <Text className="text-sm font-semibold text-gray-700 mb-3">Color</Text>
-            <View className="flex-row flex-wrap gap-3 mb-6">
-              {COLORS.map(color => (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+            <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  New Category
+                </Text>
                 <TouchableOpacity
-                  key={color}
-                  onPress={() => setSelectedColor(color)}
-                  className={`w-10 h-10 rounded-full items-center justify-center ${selectedColor === color ? "border-2 border-gray-900" : ""}`}
-                  style={{ backgroundColor: color }}
+                  onPress={() => {
+                    resetForm();
+                    setModalVisible(false);
+                  }}
                 >
-                  {selectedColor === color && <Ionicons name="checkmark" size={18} color="white" />}
+                  <Ionicons name="close" size={24} color="#6B7280" />
                 </TouchableOpacity>
-              ))}
+              </View>
+
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+                Name *
+              </Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Food, Transport"
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-5"
+                placeholderTextColor="#9CA3AF"
+              />
+
+              <Text className="text-sm font-semibold text-gray-700 mb-3">
+                Color
+              </Text>
+              <View className="flex-row flex-wrap gap-3 mb-6">
+                {COLORS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    onPress={() => setSelectedColor(color)}
+                    className={`w-10 h-10 rounded-full items-center justify-center ${selectedColor === color ? "border-2 border-gray-900" : ""}`}
+                    style={{ backgroundColor: color }}
+                  >
+                    {selectedColor === color && (
+                      <Ionicons name="checkmark" size={18} color="white" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={saving}
+                className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}
+              >
+                <Text className="text-white font-bold text-base">
+                  {saving ? "Saving..." : "Add Category"}
+                </Text>
+              </TouchableOpacity>
+
+              <View className="h-4" />
             </View>
-
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={saving}
-              className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}
-            >
-              <Text className="text-white font-bold text-base">{saving ? "Saving..." : "Add Category"}</Text>
-            </TouchableOpacity>
-
-            <View className="h-4" />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
