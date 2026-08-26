@@ -34,7 +34,7 @@ export const budgets = sqliteTable('budgets', {
 export const fuelLogs = sqliteTable("fuel_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   startKm: real("start_km").notNull(),
-  odometerKm: real("odometer_km").notNull(),
+  odometerKm: real("odometer_km"),
   litres: real("litres").notNull(),
   pricePerLitre: real("price_per_litre").notNull(),
   totalCost: real("total_cost").notNull(),

@@ -330,7 +330,7 @@ export const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS fuel_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         start_km REAL NOT NULL,
-        odometer_km REAL NOT NULL,
+        odometer_km REAL,
         litres REAL NOT NULL,
         price_per_litre REAL NOT NULL,
         total_cost REAL NOT NULL,
@@ -340,6 +340,32 @@ export const initDatabase = async () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 `);
+    try {
+      const tableInfo = await db.run(sql`PRAGMA table_info(fuel_logs)`);
+      const odoCol = tableInfo.rows?.find((r) => r.name === "odometer_km");
+      if (odoCol && odoCol.notnull === 1) {
+        await db.run(sql`ALTER TABLE fuel_logs RENAME TO fuel_logs_old`);
+        await db.run(sql`
+      CREATE TABLE fuel_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_km REAL NOT NULL,
+        odometer_km REAL,
+        litres REAL NOT NULL,
+        price_per_litre REAL NOT NULL,
+        total_cost REAL NOT NULL,
+        date TEXT NOT NULL,
+        month TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+        await db.run(sql`INSERT INTO fuel_logs SELECT * FROM fuel_logs_old`);
+        await db.run(sql`DROP TABLE fuel_logs_old`);
+        console.log("Migrated fuel_logs: odometer_km is now nullable");
+      }
+    } catch (migErr) {
+      console.warn("Fuel migration check skipped", migErr);
+    }
 
     // Seed SQLite categories if empty
     const catCheck = await db.select().from(categories).limit(1);
@@ -367,15 +393,24 @@ export const getFuelLogs = async () => {
   if (!db) {
     if (Platform.OS === "web") {
       const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
-      return list.sort((a, b) => b.odometerKm - a.odometerKm);
+      // Pending (no end reading) first, then by date descending
+      return list.sort((a, b) => {
+        const aPending = a.odometerKm == null ? 0 : 1;
+        const bPending = b.odometerKm == null ? 0 : 1;
+        if (aPending !== bPending) return aPending - bPending;
+        return (b.odometerKm || b.startKm) - (a.odometerKm || a.startKm);
+      });
     }
     return [];
   }
-  return await db.select().from(fuelLogs).orderBy(desc(fuelLogs.odometerKm));
+  return await db
+    .select()
+    .from(fuelLogs)
+    .orderBy(fuelLogs.odometerKm, desc(fuelLogs.id));
 };
 
 export const addFuelLog = async ({
-  odometerKm,
+  odometerKm, // can be null now
   startKm,
   litres,
   pricePerLitre,
@@ -390,7 +425,7 @@ export const addFuelLog = async ({
       const newLog = {
         id: Date.now(),
         startKm,
-        odometerKm,
+        odometerKm: odometerKm || null,
         litres,
         pricePerLitre,
         totalCost,
@@ -407,9 +442,36 @@ export const addFuelLog = async ({
   }
   const result = await db
     .insert(fuelLogs)
-    .values({ startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note })
+    .values({
+      startKm,
+      odometerKm: odometerKm || null,
+      litres,
+      pricePerLitre,
+      totalCost,
+      date,
+      month,
+      note,
+    })
     .returning();
   return result[0];
+};
+
+export const updateFuelLogEndReading = async (id, endKm) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+      const log = list.find((f) => f.id === id);
+      if (log) log.odometerKm = endKm;
+      localStorage.setItem("fuel_logs", JSON.stringify(list));
+      return { success: true };
+    }
+    return { success: false };
+  }
+  await db
+    .update(fuelLogs)
+    .set({ odometerKm: endKm })
+    .where(eq(fuelLogs.id, id));
+  return { success: true };
 };
 
 export const deleteFuelLog = async (id) => {
@@ -433,7 +495,8 @@ export const calculateFuelAverage = (logs) => {
     totalLitres = 0,
     totalCost = 0;
   for (const log of logs) {
-    const driven = log.startKm ? log.odometerKm - log.startKm : 0;
+    const driven =
+      log.startKm && log.odometerKm ? log.odometerKm - log.startKm : 0;
     if (driven > 0) {
       totalKm += driven;
       totalLitres += log.litres;
