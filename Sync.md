@@ -48,6 +48,22 @@ The MongoDB schemas only store a subset of fields. Mobile-only fields stay in SQ
 | remote_id | ✅ | — | Tracks MongoDB `_id` |
 | sync_status | ✅ | — | `'pending'` or `'synced'` |
 
+### Fuel Log Fields
+| Field | SQLite (Mobile) | MongoDB (Server) | Syncs? |
+|-------|----------------|-------------------|--------|
+| startKm | ✅ | ✅ | ✅ |
+| odometerKm | ✅ | ✅ | ✅ (nullable) |
+| litres | ✅ | ✅ | ✅ |
+| pricePerLitre | ✅ | ✅ | ✅ |
+| totalCost | ✅ | ✅ | ✅ |
+| date | ✅ | ✅ | ✅ |
+| month | ✅ | ✅ | ✅ |
+| note | ✅ | ✅ | ✅ |
+| remote_id | ✅ | — | Tracks MongoDB `_id` |
+| sync_status | ✅ | — | `'pending'` or `'synced'` |
+
+> **Note:** All fuel fields sync to MongoDB (unlike expenses where category/date/description are local-only).
+
 ---
 
 ## 🗄️ MongoDB Schemas (Unchanged)
@@ -72,6 +88,23 @@ const BudgetSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
 });
 // ⚠️ No timestamps — delta sync does full pull for budgets
+```
+
+### `Backend/Models/fuelLog.js`
+```javascript
+const FuelLogSchema = new mongoose.Schema(
+  {
+    startKm: { type: Number, required: true },
+    odometerKm: { type: Number, default: null },   // nullable — end reading added later
+    litres: { type: Number, required: true },
+    pricePerLitre: { type: Number, required: true },
+    totalCost: { type: Number, required: true },
+    date: { type: String, required: true },
+    month: { type: String, required: true },
+    note: { type: String, default: "" },
+  },
+  { timestamps: true }  // Gives us updatedAt for delta sync
+);
 ```
 
 ---
@@ -112,6 +145,23 @@ const BudgetSchema = new mongoose.Schema({
 { items: [{ _id, amount, month }], timestamp: 1716345600000 }
 ```
 
+### Fuel Log Sync (`Backend/Routes/fuel.routes.js`)
+
+**`POST /fuel/sync`** — Push pending mobile fuel logs to MongoDB
+```javascript
+// Request body:
+{ fuelLogs: [{ id, remoteId, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note }] }
+
+// Response:
+{ success: true, syncedIds: [{ localId, remoteId }] }
+```
+
+**`GET /fuel/delta?since=<timestamp>`** — Pull fuel logs updated since last sync
+```javascript
+// Response:
+{ items: [{ _id, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note }], timestamp: 1716345600000, activeIds: ["..."] }
+```
+
 ---
 
 ## 📱 Mobile SQLite Schema (`src/lib/db/schema.js`)
@@ -139,6 +189,21 @@ export const budgets = sqliteTable('budgets', {
   syncStatus: text('sync_status').default('pending'),
   createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const fuelLogs = sqliteTable('fuel_logs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  remoteId: text('remote_id'),           // MongoDB _id
+  startKm: real('start_km').notNull(),
+  odometerKm: real('odometer_km'),       // nullable — end reading added later
+  litres: real('litres').notNull(),
+  pricePerLitre: real('price_per_litre').notNull(),
+  totalCost: real('total_cost').notNull(),
+  date: text('date').notNull(),
+  month: text('month').notNull(),
+  note: text('note'),
+  syncStatus: text('sync_status').default('pending'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
 ```
 
 ---
@@ -161,11 +226,21 @@ Three exported functions:
 3. **Pull:** Fetches `GET /budget/delta` — pulls ALL budgets (no timestamps on model)
 4. Upserts by `month` uniqueness
 
+### `syncFuelLogs()`
+1. **Push:** Queries SQLite for `sync_status = 'pending'` fuel logs
+2. Sends all fuel fields to `POST /fuel/sync`
+3. Server upserts into MongoDB and returns `syncedIds` with MongoDB `_id`
+4. Updates local SQLite: sets `sync_status = 'synced'` and stores `remote_id`
+5. **Pull:** Fetches `GET /fuel/delta?since=<lastSync>` for new/updated server records
+6. Upserts into SQLite with `sync_status = 'synced'`
+7. **Deletion reconciliation:** Removes local synced records whose `remoteId` is no longer in `activeIds`
+
 ### `syncAll()`
 ```javascript
 export const syncAll = async () => {
   await syncExpenses();
   await syncBudgets();
+  await syncFuelLogs();
 };
 ```
 
@@ -203,7 +278,9 @@ useEffect(() => {
 When you receive this file:
 1. **DO NOT** modify the MongoDB Mongoose schemas — they are the source of truth
 2. **Modify the mobile SQLite schema** to include `remoteId` and `syncStatus` columns
-3. **Create `src/lib/sync/syncManager.js`** with `syncExpenses()`, `syncBudgets()`, `syncAll()`
+3. **Create `src/lib/sync/syncManager.js`** with `syncExpenses()`, `syncBudgets()`, `syncFuelLogs()`, `syncAll()`
 4. **Add sync endpoints** to the existing Express routers (POST /sync, GET /delta)
-5. Only sync the fields that MongoDB knows about — mobile-only fields (category, date, description) stay local
+5. Only sync the fields that MongoDB knows about — mobile-only fields (category, date, description on expenses) stay local
 6. Budget model has no timestamps — use full pull instead of delta
+7. FuelLog model has timestamps — use delta sync like expenses
+8. All fuel fields sync to MongoDB (no local-only fields)

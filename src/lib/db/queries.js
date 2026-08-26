@@ -329,6 +329,7 @@ export const initDatabase = async () => {
     await db.run(sql`
       CREATE TABLE IF NOT EXISTS fuel_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remote_id TEXT,
         start_km REAL NOT NULL,
         odometer_km REAL,
         litres REAL NOT NULL,
@@ -337,31 +338,49 @@ export const initDatabase = async () => {
         date TEXT NOT NULL,
         month TEXT NOT NULL,
         note TEXT,
+        sync_status TEXT DEFAULT 'pending',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 `);
+    // Migration: add remote_id + sync_status columns if missing
     try {
       const tableInfo = await db.run(sql`PRAGMA table_info(fuel_logs)`);
-      const odoCol = tableInfo.rows?.find((r) => r.name === "odometer_km");
-      if (odoCol && odoCol.notnull === 1) {
+      const cols = tableInfo.rows || [];
+      const hasRemoteId = cols.some((r) => r.name === "remote_id");
+      const hasSyncStatus = cols.some((r) => r.name === "sync_status");
+      const odoCol = cols.find((r) => r.name === "odometer_km");
+      const needsRecreate = odoCol && odoCol.notnull === 1;
+
+      if (needsRecreate || !hasRemoteId || !hasSyncStatus) {
         await db.run(sql`ALTER TABLE fuel_logs RENAME TO fuel_logs_old`);
         await db.run(sql`
-      CREATE TABLE fuel_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        start_km REAL NOT NULL,
-        odometer_km REAL,
-        litres REAL NOT NULL,
-        price_per_litre REAL NOT NULL,
-        total_cost REAL NOT NULL,
-        date TEXT NOT NULL,
-        month TEXT NOT NULL,
-        note TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-        await db.run(sql`INSERT INTO fuel_logs SELECT * FROM fuel_logs_old`);
+          CREATE TABLE fuel_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            remote_id TEXT,
+            start_km REAL NOT NULL,
+            odometer_km REAL,
+            litres REAL NOT NULL,
+            price_per_litre REAL NOT NULL,
+            total_cost REAL NOT NULL,
+            date TEXT NOT NULL,
+            month TEXT NOT NULL,
+            note TEXT,
+            sync_status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        // Copy old data — pad missing columns with defaults
+        const oldCols = cols.map((c) => c.name).join(", ");
+        const selectCols = cols.map((c) => c.name).join(", ");
+        const extraCols = [];
+        if (!hasRemoteId) extraCols.push("NULL as remote_id");
+        if (!hasSyncStatus) extraCols.push("'pending' as sync_status");
+        const selectExpr = extraCols.length > 0
+          ? `${selectCols}, ${extraCols.join(", ")}`
+          : selectCols;
+        await db.run(sql.raw(`INSERT INTO fuel_logs (${oldCols}${!hasRemoteId ? ', remote_id' : ''}${!hasSyncStatus ? ', sync_status' : ''}) SELECT ${selectExpr} FROM fuel_logs_old`));
         await db.run(sql`DROP TABLE fuel_logs_old`);
-        console.log("Migrated fuel_logs: odometer_km is now nullable");
+        console.log("Migrated fuel_logs: added remote_id, sync_status, nullable odometer_km");
       }
     } catch (migErr) {
       console.warn("Fuel migration check skipped", migErr);

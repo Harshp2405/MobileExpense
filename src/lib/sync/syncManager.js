@@ -1,5 +1,5 @@
 import { db } from "../db/client";
-import { expenses, budgets } from "../db/schema";
+import { expenses, budgets, fuelLogs } from "../db/schema";
 import { eq } from "drizzle-orm";
 import * as storage from "../utils/storage";
 import { Platform } from "react-native";
@@ -433,13 +433,199 @@ export const syncBudgets = async () => {
 };
 
 // ==========================================
+// ⛽ SYNC FUEL LOGS
+// Pushes pending local fuel logs → MongoDB
+// Pulls remote updates → SQLite
+// All fuel fields sync (unlike expenses where some are local-only)
+// ==========================================
+
+export const syncFuelLogs = async () => {
+  console.log("[Sync] Syncing fuel logs...");
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      try {
+        // ---- A. PUSH: Local pending → Server ----
+        const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+        const pending = list.filter(
+          (f) => !f.syncStatus || f.syncStatus === "pending"
+        );
+
+        if (pending.length > 0) {
+          const payload = pending.map(
+            ({ id, remoteId, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note }) => ({
+              id, remoteId, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note,
+            })
+          );
+
+          const res = await fetch(`${API_URL}/fuel/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fuelLogs: payload }),
+          });
+
+          if (res.ok) {
+            const { syncedIds } = await res.json();
+            const updatedList = list.map((item) => {
+              const match = syncedIds.find((s) => s.localId === item.id);
+              if (match) {
+                return { ...item, syncStatus: "synced", remoteId: String(match.remoteId) };
+              }
+              return item;
+            });
+            localStorage.setItem("fuel_logs", JSON.stringify(updatedList));
+            console.log(`[Sync Web] Pushed ${syncedIds.length} fuel logs`);
+          }
+        }
+
+        // ---- B. PULL: Server delta → Local ----
+        const lastSync = localStorage.getItem("last_sync_fuel_time") || "0";
+        const pullRes = await fetch(`${API_URL}/fuel/delta?since=${lastSync}`);
+
+        if (pullRes.ok) {
+          const { items, timestamp, activeIds } = await pullRes.json();
+          let currentList = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+
+          for (const item of items) {
+            const idx = currentList.findIndex((f) => f.remoteId === String(item._id));
+            if (idx > -1) {
+              currentList[idx] = {
+                ...currentList[idx],
+                startKm: item.startKm, odometerKm: item.odometerKm,
+                litres: item.litres, pricePerLitre: item.pricePerLitre,
+                totalCost: item.totalCost, date: item.date,
+                month: item.month, note: item.note, syncStatus: "synced",
+              };
+            } else {
+              currentList.push({
+                id: Date.now() + Math.random(),
+                remoteId: String(item._id),
+                startKm: item.startKm, odometerKm: item.odometerKm,
+                litres: item.litres, pricePerLitre: item.pricePerLitre,
+                totalCost: item.totalCost, date: item.date,
+                month: item.month, note: item.note || "",
+                syncStatus: "synced", createdAt: new Date().toISOString(),
+              });
+            }
+          }
+
+          if (activeIds && Array.isArray(activeIds)) {
+            currentList = currentList.filter((item) => {
+              if (!item.remoteId || item.syncStatus === "pending") return true;
+              return activeIds.includes(item.remoteId);
+            });
+          }
+
+          localStorage.setItem("fuel_logs", JSON.stringify(currentList));
+          localStorage.setItem("last_sync_fuel_time", String(timestamp));
+          console.log(`[Sync Web] Pulled ${items.length} fuel logs from server`);
+        }
+      } catch (error) {
+        console.warn("[Sync Web] Fuel sync failed:", error);
+      }
+    }
+    return;
+  }
+
+  try {
+    // ---- A. PUSH: Local pending → Server ----
+    const pending = await db
+      .select()
+      .from(fuelLogs)
+      .where(eq(fuelLogs.syncStatus, "pending"));
+
+    if (pending.length > 0) {
+      const payload = pending.map(
+        ({ id, remoteId, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note }) => ({
+          id, remoteId, startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note,
+        })
+      );
+
+      const res = await fetch(`${API_URL}/fuel/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fuelLogs: payload }),
+      });
+
+      if (res.ok) {
+        const { syncedIds } = await res.json();
+        for (const { localId, remoteId } of syncedIds) {
+          await db
+            .update(fuelLogs)
+            .set({ syncStatus: "synced", remoteId: String(remoteId) })
+            .where(eq(fuelLogs.id, localId));
+        }
+        console.log(`[Sync] Pushed ${syncedIds.length} fuel logs`);
+      }
+    }
+
+    // ---- B. PULL: Server delta → Local ----
+    const lastSync = (await storage.getItem("last_sync_fuel_time")) || "0";
+    const pullRes = await fetch(`${API_URL}/fuel/delta?since=${lastSync}`);
+
+    if (pullRes.ok) {
+      const { items, timestamp, activeIds } = await pullRes.json();
+
+      for (const item of items) {
+        const existing = await db
+          .select()
+          .from(fuelLogs)
+          .where(eq(fuelLogs.remoteId, String(item._id)))
+          .limit(1);
+
+        const values = {
+          startKm: item.startKm,
+          odometerKm: item.odometerKm,
+          litres: item.litres,
+          pricePerLitre: item.pricePerLitre,
+          totalCost: item.totalCost,
+          date: item.date,
+          month: item.month,
+          note: item.note,
+          syncStatus: "synced",
+        };
+
+        if (existing.length > 0) {
+          await db
+            .update(fuelLogs)
+            .set(values)
+            .where(eq(fuelLogs.remoteId, String(item._id)));
+        } else {
+          await db.insert(fuelLogs).values({
+            remoteId: String(item._id),
+            ...values,
+          });
+        }
+      }
+
+      // Deletion reconciliation
+      if (activeIds && Array.isArray(activeIds)) {
+        const localLogs = await db.select().from(fuelLogs);
+        for (const local of localLogs) {
+          if (local.remoteId && local.syncStatus !== "pending" && !activeIds.includes(local.remoteId)) {
+            await db.delete(fuelLogs).where(eq(fuelLogs.id, local.id));
+            console.log(`[Sync] Deleted local fuel log (ID: ${local.id}) since it was deleted on the server`);
+          }
+        }
+      }
+
+      await storage.setItem("last_sync_fuel_time", String(timestamp));
+      console.log(`[Sync] Pulled ${items.length} fuel logs from server`);
+    }
+  } catch (error) {
+    console.warn("[Sync] Fuel sync failed:", error);
+  }
+};
+
+// ==========================================
 // 🔄 SYNC ALL
-// Runs both syncs sequentially
+// Runs all syncs sequentially
 // ==========================================
 
 export const syncAll = async () => {
   console.log("=== STARTING FULL SYNC ===");
   await syncExpenses();
   await syncBudgets();
+  await syncFuelLogs();
   console.log("=== FULL SYNC COMPLETE ===");
 };

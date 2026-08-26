@@ -33,6 +33,7 @@ export const budgets = sqliteTable('budgets', {
 
 export const fuelLogs = sqliteTable("fuel_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  remoteId: text("remote_id"),
   startKm: real("start_km").notNull(),
   odometerKm: real("odometer_km"),
   litres: real("litres").notNull(),
@@ -41,5 +42,6 @@ export const fuelLogs = sqliteTable("fuel_logs", {
   date: text("date").notNull(),
   month: text("month").notNull(),
   note: text("note"),
+  syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
