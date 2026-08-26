@@ -1,5 +1,5 @@
 import { db } from "./client";
-import { expenses, budgets, categories } from "./schema";
+import { expenses, budgets, categories, fuelLogs } from "./schema";
 import { eq, desc, sum, asc, sql } from "drizzle-orm";
 import { Platform } from "react-native";
 
@@ -326,6 +326,21 @@ export const initDatabase = async () => {
       );
     `);
 
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS fuel_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_km REAL NOT NULL,
+        odometer_km REAL NOT NULL,
+        litres REAL NOT NULL,
+        price_per_litre REAL NOT NULL,
+        total_cost REAL NOT NULL,
+        date TEXT NOT NULL,
+        month TEXT NOT NULL,
+        note TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
     // Seed SQLite categories if empty
     const catCheck = await db.select().from(categories).limit(1);
     if (catCheck.length === 0) {
@@ -346,4 +361,91 @@ export const initDatabase = async () => {
   } catch (error) {
     console.error("Failed to initialize database", error);
   }
+};
+
+export const getFuelLogs = async () => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+      return list.sort((a, b) => b.odometerKm - a.odometerKm);
+    }
+    return [];
+  }
+  return await db.select().from(fuelLogs).orderBy(desc(fuelLogs.odometerKm));
+};
+
+export const addFuelLog = async ({
+  odometerKm,
+  startKm,
+  litres,
+  pricePerLitre,
+  date,
+  month,
+  note,
+}) => {
+  const totalCost = litres * pricePerLitre;
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+      const newLog = {
+        id: Date.now(),
+        startKm,
+        odometerKm,
+        litres,
+        pricePerLitre,
+        totalCost,
+        date,
+        month,
+        note: note || "",
+        createdAt: new Date().toISOString(),
+      };
+      list.push(newLog);
+      localStorage.setItem("fuel_logs", JSON.stringify(list));
+      return newLog;
+    }
+    throw new Error("Database not initialized");
+  }
+  const result = await db
+    .insert(fuelLogs)
+    .values({ startKm, odometerKm, litres, pricePerLitre, totalCost, date, month, note })
+    .returning();
+  return result[0];
+};
+
+export const deleteFuelLog = async (id) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      let list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+      list = list.filter((f) => f.id !== id);
+      localStorage.setItem("fuel_logs", JSON.stringify(list));
+      return { success: true };
+    }
+    return { success: false };
+  }
+  await db.delete(fuelLogs).where(eq(fuelLogs.id, id));
+  return { success: true };
+};
+
+// Uses startKm from each log — no need to compare consecutive entries
+export const calculateFuelAverage = (logs) => {
+  if (logs.length < 1) return null;
+  let totalKm = 0,
+    totalLitres = 0,
+    totalCost = 0;
+  for (const log of logs) {
+    const driven = log.startKm ? log.odometerKm - log.startKm : 0;
+    if (driven > 0) {
+      totalKm += driven;
+      totalLitres += log.litres;
+      totalCost += log.totalCost;
+    }
+  }
+  if (totalLitres === 0 || totalKm === 0) return null;
+  return {
+    averageKmPerLitre: totalKm / totalLitres,
+    totalKm,
+    totalLitres,
+    totalCost,
+    costPerKm: totalCost / totalKm,
+  };
 };
