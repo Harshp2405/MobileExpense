@@ -9,6 +9,7 @@ import {
     ScrollView,
     Alert,
     Platform,
+    KeyboardAvoidingView
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -334,6 +335,7 @@ const Fuel = () => {
 
             {/* Add Fill-up Modal */}
             <Modal visible={modalVisible} animationType="slide" transparent>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
                     <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
                         <View className="flex-row justify-between items-center mb-6">
@@ -440,11 +442,13 @@ const Fuel = () => {
                             <View className="h-8" />
                         </ScrollView>
                     </View>
-                </View>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Edit End Reading Modal */}
             <Modal visible={!!editingLog} animationType="slide" transparent>
+                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
                     <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
                         <View className="flex-row justify-between items-center mb-4">
@@ -485,7 +489,8 @@ const Fuel = () => {
                         </TouchableOpacity>
                         <View className="h-8" />
                     </View>
-                </View>
+                    </View>
+                </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>
     );
