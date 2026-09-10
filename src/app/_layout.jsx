@@ -85,8 +85,8 @@ export default function RootLayout() {
       <Drawer.Screen
         name="(tabt)"
         options={{
-          drawerLabel: "Test",
-          title: "User Setting",
+          drawerLabel: "Analytics",
+          title: "Analyscies of Budget",
         }}
       />
       <Drawer.Screen

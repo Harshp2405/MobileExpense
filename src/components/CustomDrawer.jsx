@@ -15,12 +15,27 @@ import { syncAll } from "../lib/sync/syncManager";
 import { useThemePersist } from "../lib/utils/useThemePersist";
 
 const MENU_ITEMS = [
-  { name: "Dashboard", icon: "wallet-outline", activeIcon: "wallet", route: "/(tabs)" },
+  {
+    name: "Dashboard",
+    icon: "wallet-outline",
+    activeIcon: "wallet",
+    route: "/(tabs)",
+  },
   // { name: "Analytics Dashboard", icon: "bar-chart-outline", activeIcon: "bar-chart", route: "/(tabs)/Analytics" },
   // { name: "Budget Planning", icon: "pie-chart-outline", activeIcon: "pie-chart", route: "/(tabs)/budgets" },
   // { name: "Category Management", icon: "grid-outline", activeIcon: "grid", route: "/(tabs)/categories" },
-  { name: "App Architecture & Info", icon: "information-circle-outline", activeIcon: "information-circle", route: "/about" },
-  { name: "Test", icon: "information-circle-outline", activeIcon: "information-circle", route: "/(tabt)" },
+  {
+    name: "App Architecture & Info",
+    icon: "information-circle-outline",
+    activeIcon: "information-circle",
+    route: "/about",
+  },
+  {
+    name: "Analytics",
+    icon: "chart-outline",
+    activeIcon: "chart-outline",
+    route: "/(tabt)",
+  },
 ];
 
 export default function CustomDrawerContent(props) {

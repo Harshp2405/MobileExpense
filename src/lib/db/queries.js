@@ -5,6 +5,7 @@ import {
   categories,
   fuelLogs,
   subcategories,
+  income
 } from "./schema";
 import { eq, desc, sum, asc, sql } from "drizzle-orm";
 import { Platform } from "react-native";
@@ -529,6 +530,23 @@ export const initDatabase = async () => {
   );
 `);
 
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS income (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        remote_id TEXT,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL,
+        source TEXT,
+        date TEXT,
+        description TEXT,
+        month TEXT NOT NULL,
+        method TEXT,
+        sync_status TEXT DEFAULT 'pending',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+
     // NEW: migrate `expenses` — add nullable `subcategory` column if missing
     try {
       const expenseCols = await db.run(sql`PRAGMA table_info(expenses)`);
@@ -738,4 +756,87 @@ export const calculateFuelAverage = (logs) => {
     totalCost,
     costPerKm: totalCost / totalKm,
   };
+};
+
+
+/** ==============================
+ *  ANALYTICS DATA ACCESS
+ *  ============================== */
+
+// All expenses, newest first. Used as the single source for every analytics view.
+export const getAllExpenses = async () => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("expenses") || "[]");
+      return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    return [];
+  }
+  return await db.select().from(expenses).orderBy(desc(expenses.createdAt));
+};
+
+// All income entries, newest first.
+export const getAllIncome = async () => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("income") || "[]");
+      return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    return [];
+  }
+  return await db.select().from(income).orderBy(desc(income.createdAt));
+};
+
+// Add an income entry (mirrors addExpense)
+export const addIncome = async ({ title, amount, source, date, description, month, method }) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("income") || "[]");
+      const newIncome = {
+        id: Date.now(),
+        title,
+        amount: Number(amount),
+        source: source || "Other",
+        date: date || new Date().toISOString().split("T")[0],
+        description: description || "",
+        month,
+        method: method || "Cash",
+        createdAt: new Date().toISOString(),
+      };
+      list.push(newIncome);
+      localStorage.setItem("income", JSON.stringify(list));
+      return newIncome;
+    }
+    throw new Error("Database not initialized");
+  }
+  const result = await db
+    .insert(income)
+    .values({ title, amount, source, date, description, month, method })
+    .returning();
+  return result[0];
+};
+
+export const deleteIncome = async (id) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      let list = JSON.parse(localStorage.getItem("income") || "[]");
+      list = list.filter((i) => i.id !== id);
+      localStorage.setItem("income", JSON.stringify(list));
+      return { success: true };
+    }
+    return { success: false };
+  }
+  await db.delete(income).where(eq(income.id, id));
+  return { success: true };
+};
+
+// Distinct years present in the data — powers the year selector without hardcoding.
+export const getAvailableYears = async () => {
+  const [exp, inc] = await Promise.all([getAllExpenses(), getAllIncome()]);
+  const years = new Set();
+  [...exp, ...inc].forEach((t) => {
+    if (t.month) years.add(t.month.split("-")[0]);
+  });
+  const list = Array.from(years).sort((a, b) => Number(b) - Number(a));
+  return list.length > 0 ? list : [String(new Date().getFullYear())];
 };

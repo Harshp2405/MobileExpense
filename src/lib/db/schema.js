@@ -53,3 +53,17 @@ export const fuelLogs = sqliteTable("fuel_logs", {
   syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const income = sqliteTable("income", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  remoteId: text("remote_id"),
+  title: text("title").notNull(),
+  amount: real("amount").notNull(),
+  source: text("source"), // e.g. Salary, Freelance, Interest
+  date: text("date"), // "DD/MM/YYYY" — same convention as expenses
+  description: text("description"),
+  month: text("month").notNull(), // "yyyy-MM"
+  method: text("method"), // Cash / Card / UPI / Other — mirrors expenses
+  syncStatus: text("sync_status").default("pending"),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});

@@ -19,31 +19,32 @@ export default function TabLayout() {
           elevation: 0,
           shadowOpacity: 0,
         },
-      }}>
+      }}
+    >
       <Tabs.Screen
-        name='index'
+        name="index"
         options={{
-          title: "Index 2",
+          title: "Overview",
           tabBarIcon: ({ color }) => (
-            <Ionicons name='wallet-outline' size={24} color={color} />
+            <Ionicons name="stats-chart-outline" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name='DataShow'
+        name="DataShow"
         options={{
-          title: "DataShow",
+          title: "Transactions",
           tabBarIcon: ({ color }) => (
-            <Ionicons name='grid-outline' size={24} color={color} />
+            <Ionicons name="receipt-outline" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name='UserSettings'
+        name="UserSettings"
         options={{
-          title: "UserSettings",
+          title: "Settings",
           tabBarIcon: ({ color }) => (
-            <Ionicons name='pie-chart-outline' size={24} color={color} />
+            <Ionicons name="settings-outline" size={24} color={color} />
           ),
         }}
       />
