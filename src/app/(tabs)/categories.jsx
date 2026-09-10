@@ -1,21 +1,56 @@
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
 import { useFocusEffect } from "expo-router";
-import { getCategories, addCategory, deleteCategory } from "../../lib/db/queries";
+import {
+  getCategories,
+  addCategory,
+  deleteCategory,
+  getSubcategories,
+  addSubcategory,
+  deleteSubcategory,
+} from "../../lib/db/queries";
 
-const COLORS = ["#EF4444", "#F59E0B", "#10B981", "#3B82F6", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6"];
+const COLORS = [
+  "#EF4444",
+  "#F59E0B",
+  "#10B981",
+  "#3B82F6",
+  "#8B5CF6",
+  "#EC4899",
+  "#6366F1",
+  "#14B8A6",
+];
 
 export default function CategoriesScreen() {
   const [categories, setCategories] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Form state
   const [name, setName] = useState("");
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
+
+  // NEW: subcategory management state
+  const [expandedCategoryId, setExpandedCategoryId] = useState(null);
+  const [subcategoriesByCategory, setSubcategoriesByCategory] = useState({});
+  const [subModalVisible, setSubModalVisible] = useState(false);
+  const [subModalCategoryId, setSubModalCategoryId] = useState(null);
+  const [subName, setSubName] = useState("");
+  const [subSaving, setSubSaving] = useState(false);
 
   const loadData = async () => {
     try {
@@ -29,7 +64,11 @@ export default function CategoriesScreen() {
     }
   };
 
-  useFocusEffect(useCallback(() => { loadData(); }, []));
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, []),
+  );
 
   const resetForm = () => {
     setName("");
@@ -55,25 +94,98 @@ export default function CategoriesScreen() {
   };
 
   const handleDelete = (id, catName) => {
-    Alert.alert(
-      "Delete Category",
-      `Are you sure you want to delete "${catName}"?\n\nAll expenses belonging to this category will be moved to "General".`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteCategory(id, catName);
-              await loadData();
-            } catch (error) {
-              Alert.alert("Error", "Failed to delete category");
-            }
-          },
-        },
-      ]
-    );
+    const message = `Are you sure you want to delete "${catName}"?\n\nAll subcategories will be removed and expenses belonging to this category will be moved to "General".`;
+    const runDelete = async () => {
+      try {
+        await deleteCategory(id, catName);
+        await loadData();
+      } catch (error) {
+        Alert.alert("Error", "Failed to delete category");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) runDelete();
+      return;
+    }
+    Alert.alert("Delete Category", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: runDelete },
+    ]);
+  };
+
+  // NEW: toggle expand + lazy load subcategories
+  const toggleExpand = async (categoryId) => {
+    if (expandedCategoryId === categoryId) {
+      setExpandedCategoryId(null);
+      return;
+    }
+    setExpandedCategoryId(categoryId);
+    if (!subcategoriesByCategory[categoryId]) {
+      const subs = await getSubcategories(categoryId);
+      setSubcategoriesByCategory((prev) => ({
+        ...prev,
+        [categoryId]: subs || [],
+      }));
+    }
+  };
+
+  // NEW: open add-subcategory modal
+  const openSubModal = (categoryId) => {
+    setSubModalCategoryId(categoryId);
+    setSubName("");
+    setSubModalVisible(true);
+  };
+
+  // NEW: save subcategory
+  const handleSaveSub = async () => {
+    if (!subName.trim()) {
+      Alert.alert("Error", "Subcategory name is required");
+      return;
+    }
+    try {
+      setSubSaving(true);
+      await addSubcategory({
+        categoryId: subModalCategoryId,
+        name: subName.trim(),
+      });
+      const subs = await getSubcategories(subModalCategoryId);
+      setSubcategoriesByCategory((prev) => ({
+        ...prev,
+        [subModalCategoryId]: subs || [],
+      }));
+      setSubModalVisible(false);
+    } catch (error) {
+      Alert.alert("Error", error.message || "Failed to save subcategory");
+    } finally {
+      setSubSaving(false);
+    }
+  };
+
+  // NEW: delete subcategory
+  const handleDeleteSub = (categoryId, subId, subName) => {
+    const message = `Delete "${subName}"? Expenses using it will keep their category but lose this subcategory.`;
+    const runDelete = async () => {
+      try {
+        await deleteSubcategory(subId);
+        const subs = await getSubcategories(categoryId);
+        setSubcategoriesByCategory((prev) => ({
+          ...prev,
+          [categoryId]: subs || [],
+        }));
+      } catch (error) {
+        Alert.alert("Error", "Failed to delete subcategory");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) runDelete();
+      return;
+    }
+    Alert.alert("Delete Subcategory", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: runDelete },
+    ]);
   };
 
   return (
@@ -107,36 +219,100 @@ export default function CategoriesScreen() {
               </Text>
             </View>
           }
-          numColumns={2}
-          columnWrapperClassName="gap-4"
           keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View className="bg-white dark:bg-zinc-800 p-4 rounded-3xl mb-4 shadow-sm border border-gray-100 dark:border-zinc-700 flex-1 items-center justify-center py-8 relative">
-              <TouchableOpacity
-                onPress={() => handleDelete(item.id, item.name)}
-                className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 items-center justify-center shadow-sm"
-              >
-                <Ionicons name="trash-outline" size={16} color="#EF4444" />
-              </TouchableOpacity>
+          renderItem={({ item }) => {
+            const isExpanded = expandedCategoryId === item.id;
+            const subs = subcategoriesByCategory[item.id] || [];
 
-              <View className="w-14 h-14 rounded-full items-center justify-center mb-3 bg-blue-50 dark:bg-blue-900/30">
-                <Ionicons
-                  name="folder"
-                  size={28}
-                  color={item.color || "#3B82F6"}
-                />
+            return (
+              <View className="bg-white dark:bg-zinc-800 rounded-3xl mb-4 shadow-sm border border-gray-100 dark:border-zinc-700 overflow-hidden">
+                <TouchableOpacity
+                  onPress={() => toggleExpand(item.id)}
+                  className="flex-row items-center p-4"
+                >
+                  <View className="w-12 h-12 rounded-full items-center justify-center mr-3 bg-blue-50 dark:bg-blue-900/30">
+                    <Ionicons
+                      name="folder"
+                      size={24}
+                      color={item.color || "#3B82F6"}
+                    />
+                  </View>
+                  <Text className="text-base font-bold text-gray-900 dark:text-gray-100 flex-1">
+                    {item.name}
+                  </Text>
+
+                  <Text className="text-base  text-gray-900 dark:text-gray-100 mx-2">
+                    {item.subcategories.length}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => handleDelete(item.id, item.name)}
+                    className="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/30 items-center justify-center mr-2"
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                  <Ionicons
+                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                    size={20}
+                    color="#9CA3AF"
+                  />
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View className="px-4 pb-4 border-t border-gray-100 dark:border-zinc-700 pt-3">
+                    {subs.length === 0 ? (
+                      <Text className="text-sm text-gray-400 dark:text-gray-500 mb-3">
+                        No subcategories yet
+                      </Text>
+                    ) : (
+                      subs.map((sub) => (
+                        <View
+                          key={sub.id}
+                          className="flex-row items-center justify-between py-2"
+                        >
+                          <Text className="text-sm text-gray-700 dark:text-gray-300">
+                            {sub.name}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleDeleteSub(item.id, sub.id, sub.name)
+                            }
+                          >
+                            <Ionicons
+                              name="close-circle-outline"
+                              size={18}
+                              color="#EF4444"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    )}
+                    <TouchableOpacity
+                      onPress={() => openSubModal(item.id)}
+                      className="flex-row items-center mt-1"
+                    >
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={18}
+                        color="#2563EB"
+                      />
+                      <Text className="text-sm font-semibold text-blue-600 ml-1">
+                        Add Subcategory
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
-              <Text className="text-base font-bold text-gray-900 dark:text-gray-100">
-                {item.name}
-              </Text>
-            </View>
-          )}
+            );
+          }}
         />
       )}
 
-      {/* Add Category Modal */}
+      {/* Add Category Modal (unchanged) */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
             <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
               <View className="flex-row justify-between items-center mb-6">
@@ -152,7 +328,6 @@ export default function CategoriesScreen() {
                   <Ionicons name="close" size={24} color="#6B7280" />
                 </TouchableOpacity>
               </View>
-
               <Text className="text-sm font-semibold text-gray-700 mb-1.5">
                 Name *
               </Text>
@@ -163,7 +338,6 @@ export default function CategoriesScreen() {
                 className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-5"
                 placeholderTextColor="#9CA3AF"
               />
-
               <Text className="text-sm font-semibold text-gray-700 mb-3">
                 Color
               </Text>
@@ -181,7 +355,6 @@ export default function CategoriesScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <TouchableOpacity
                 onPress={handleSave}
                 disabled={saving}
@@ -191,7 +364,47 @@ export default function CategoriesScreen() {
                   {saving ? "Saving..." : "Add Category"}
                 </Text>
               </TouchableOpacity>
+              <View className="h-4" />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
+      {/* NEW: Add Subcategory Modal */}
+      <Modal visible={subModalVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+            <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  New Subcategory
+                </Text>
+                <TouchableOpacity onPress={() => setSubModalVisible(false)}>
+                  <Ionicons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+              <Text className="text-sm font-semibold text-gray-700 mb-1.5">
+                Name *
+              </Text>
+              <TextInput
+                value={subName}
+                onChangeText={setSubName}
+                placeholder="e.g. Rent, Recharge"
+                className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-5"
+                placeholderTextColor="#9CA3AF"
+              />
+              <TouchableOpacity
+                onPress={handleSaveSub}
+                disabled={subSaving}
+                className={`rounded-2xl py-4 items-center ${subSaving ? "bg-blue-300" : "bg-blue-600"}`}
+              >
+                <Text className="text-white font-bold text-base">
+                  {subSaving ? "Saving..." : "Add Subcategory"}
+                </Text>
+              </TouchableOpacity>
               <View className="h-4" />
             </View>
           </View>

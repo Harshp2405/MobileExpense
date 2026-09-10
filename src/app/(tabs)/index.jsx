@@ -28,6 +28,7 @@ import {
   addExpense,
   getCategories,
   deleteExpense,
+  getSubcategories,
 } from "../../lib/db/queries";
 
 import { exportToPDF } from "../../lib/utils/pdfExporter";
@@ -108,6 +109,8 @@ export default function ExpensesScreen() {
   const [amount, setAmount] = useState("");
 
   const [category, setCategory] = useState("");
+  const [subcategory, setSubcategory] = useState(""); // NEW
+  const [subcategoryList, setSubcategoryList] = useState([]); // NEW
 
   const [method, setMethod] = useState("Cash");
 
@@ -159,12 +162,22 @@ export default function ExpensesScreen() {
 
   const openModal = async () => {
     const cats = await getCategories();
-
     setCategoryList(cats || []);
-
-    if (cats.length > 0) setCategory(cats[0].name);
-
+    if (cats.length > 0) {
+      setCategory(cats[0].name);
+      const subs = await getSubcategories(cats[0].id);
+      setSubcategoryList(subs || []);
+    }
+    setSubcategory("");
     setModalVisible(true);
+  };
+
+  // NEW: when user taps a category chip, load its subcategories and clear previous selection
+  const handleSelectCategory = async (cat) => {
+    setCategory(cat.name);
+    setSubcategory("");
+    const subs = await getSubcategories(cat.id);
+    setSubcategoryList(subs || []);
   };
 
   const resetForm = () => {
@@ -177,12 +190,13 @@ export default function ExpensesScreen() {
     setMethod("Cash");
 
     setDescription("");
+    setSubcategory(""); // NEW
+    setSubcategoryList([]); // NEW
   };
 
   const handleSave = async () => {
     if (!title.trim() || !amount.trim()) {
       Alert.alert("Error", "Title and Amount are required");
-
       return;
     }
 
@@ -190,38 +204,27 @@ export default function ExpensesScreen() {
       setSaving(true);
 
       // Storing date in DD/MM/YYYY format as requested!
-
       const today = new Date();
-
       const dd = String(today.getDate()).padStart(2, "0");
-
       const mm = String(today.getMonth() + 1).padStart(2, "0");
-
       const yyyy = today.getFullYear();
-
       const formattedDate = `${dd}/${mm}/${yyyy}`;
 
       await addExpense({
         title: title.trim(),
-
         amount: parseFloat(amount),
-
         category: category || "Other",
-
+        subcategory: subcategory || null, // NEW
         date: formattedDate,
-
         description: description.trim(),
-
         month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
-
         method,
       });
 
       resetForm();
-
       setModalVisible(false);
-
       await loadData();
+
     } catch (error) {
       Alert.alert("Error", "Failed to add expense");
     } finally {
@@ -418,7 +421,9 @@ export default function ExpensesScreen() {
                     </Text>
 
                     <Text className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      {item.method} • {item.category} • {item.date}
+                      {item.method} • {item.category} •{" "}
+                      {item.subcategory ? ` / ${item.subcategory}` : ""} •{" "}
+                      {item.date}
                     </Text>
                   </View>
                 </View>
@@ -490,18 +495,14 @@ export default function ExpensesScreen() {
                 <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                   Category
                 </Text>
-
+                
                 {categoryList.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="mb-4"
-                  >
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View className="flex-row gap-2">
                       {categoryList.map((cat) => (
                         <TouchableOpacity
                           key={cat.id}
-                          onPress={() => setCategory(cat.name)}
+                          onPress={() => handleSelectCategory(cat)}
                           className={`px-4 py-2 rounded-full border ${category === cat.name ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"}`}
                         >
                           <Text
@@ -514,12 +515,44 @@ export default function ExpensesScreen() {
                     </View>
                   </ScrollView>
                 ) : (
-                  <Text className="text-sm text-gray-400 dark:text-gray-500 mb-4">
+                  <Text className="text-sm text-gray-400 dark:text-gray-500 my-4">
                     No categories yet. Add some in the Categories tab first.
                   </Text>
                 )}
+                {/* NEW: Subcategory row — only rendered when the selected category has subcategories */}
+                {subcategoryList.length > 0 ? (
+                  <View className="mt-3">
+                    <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Subcategory
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                    >
+                      <View className="flex-row gap-2">
+                        {subcategoryList.map((sub) => (
+                          <TouchableOpacity
+                            key={sub.id}
+                            onPress={() => setSubcategory(sub.name)}
+                            className={`px-4 py-2 rounded-full border ${subcategory === sub.name ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"}`}
+                          >
+                            <Text
+                              className={`text-sm font-semibold ${subcategory === sub.name ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                            >
+                              {sub.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ) : (
+                  <Text className="text-sm text-gray-400 dark:text-gray-500 my-4">
+                    No Sub categories yet.
+                  </Text>
+                )}
 
-                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 my-1.5">
                   Payment Method
                 </Text>
 

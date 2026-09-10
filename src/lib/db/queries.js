@@ -1,5 +1,11 @@
 import { db } from "./client";
-import { expenses, budgets, categories, fuelLogs } from "./schema";
+import {
+  expenses,
+  budgets,
+  categories,
+  fuelLogs,
+  subcategories,
+} from "./schema";
 import { eq, desc, sum, asc, sql } from "drizzle-orm";
 import { Platform } from "react-native";
 
@@ -30,6 +36,7 @@ export const addExpense = async ({
   title,
   amount,
   category,
+  subcategory, // NEW — optional
   date,
   description,
   month,
@@ -43,6 +50,7 @@ export const addExpense = async ({
         title,
         amount: Number(amount),
         category: category || "General",
+        subcategory: subcategory || null,
         date: date || new Date().toISOString().split("T")[0],
         description: description || "",
         month,
@@ -57,10 +65,11 @@ export const addExpense = async ({
   }
   const result = await db
     .insert(expenses)
-    .values({ title, amount, category, date, description, month, method })
+    .values({ title, amount, category, subcategory: subcategory || null, date, description, month, method })
     .returning();
   return result[0];
 };
+
 
 // Monthly history (AGGREGATION)
 export const getExpenseHistory = async () => {
@@ -148,14 +157,16 @@ export const addCategory = async ({ name, color }) => {
 export const deleteCategory = async (id, name) => {
   if (!db) {
     if (Platform.OS === "web") {
-      // 1. Update any expenses belonging to this category to "General"
+      // 1. Update any expenses belonging to this category to "General" (and clear subcategory)
       let expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
       expensesList = expensesList.map((e) =>
-        e.category === name ? { ...e, category: "General" } : e,
+        e.category === name
+          ? { ...e, category: "General", subcategory: null }
+          : e,
       );
       localStorage.setItem("expenses", JSON.stringify(expensesList));
 
-      // 2. Delete the category itself
+      // 2. Delete the category itself (subcategories array is removed along with it)
       let categoriesList = JSON.parse(
         localStorage.getItem("categories") || "[]",
       );
@@ -166,17 +177,175 @@ export const deleteCategory = async (id, name) => {
     }
     throw new Error("Database not initialized");
   }
-  // 1. Update any expenses belonging to this category to "General"
+  // 1. Update any expenses belonging to this category to "General" (and clear subcategory)
   await db
     .update(expenses)
-    .set({ category: "General" })
+    .set({ category: "General", subcategory: null })
     .where(eq(expenses.category, name));
 
-  // 2. Delete the category itself
+  // 2. Delete the category itself — subcategories cascade-delete via FK
   await db.delete(categories).where(eq(categories.id, id));
 
   return { success: true };
 };
+
+
+
+/** ==============================
+ *  SUBCATEGORIES BUSINESS LOGIC
+ *  ============================== */
+
+// Get subcategories for a given category id
+export const getSubcategories = async (categoryId) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("categories") || "[]");
+      const cat = list.find((c) => c.id === categoryId);
+      return cat?.subcategories || [];
+    }
+    return [];
+  }
+  return await db
+    .select()
+    .from(subcategories)
+    .where(eq(subcategories.categoryId, categoryId));
+};
+
+// Add subcategory under a category
+export const addSubcategory = async ({ categoryId, name }) => {
+  const trimmed = (name || "").trim();
+  if (!trimmed) throw new Error("Subcategory name is required");
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("categories") || "[]");
+      const idx = list.findIndex((c) => c.id === categoryId);
+      if (idx === -1) throw new Error("Category not found");
+      list[idx].subcategories = list[idx].subcategories || [];
+      const exists = list[idx].subcategories.some(
+        (s) => s.name.toLowerCase() === trimmed.toLowerCase(),
+      );
+      if (exists) throw new Error("Subcategory already exists");
+      const newSub = { id: Date.now(), categoryId, name: trimmed, createdAt: new Date().toISOString() };
+      list[idx].subcategories.push(newSub);
+      localStorage.setItem("categories", JSON.stringify(list));
+      return newSub;
+    }
+    throw new Error("Database not initialized");
+  }
+
+  // Case-insensitive duplicate check within the same category
+  const existing = await db
+    .select()
+    .from(subcategories)
+    .where(eq(subcategories.categoryId, categoryId));
+  if (existing.some((s) => s.name.toLowerCase() === trimmed.toLowerCase())) {
+    throw new Error("Subcategory already exists");
+  }
+
+  const result = await db
+    .insert(subcategories)
+    .values({ categoryId, name: trimmed })
+    .returning();
+  return result[0];
+};
+
+// Rename a subcategory (also updates matching expenses' subcategory string)
+export const updateSubcategory = async (id, { name }) => {
+  const trimmed = (name || "").trim();
+  if (!trimmed) throw new Error("Subcategory name is required");
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("categories") || "[]");
+      let oldName = null;
+      for (const cat of list) {
+        const sub = (cat.subcategories || []).find((s) => s.id === id);
+        if (sub) {
+          oldName = sub.name;
+          sub.name = trimmed;
+          break;
+        }
+      }
+      localStorage.setItem("categories", JSON.stringify(list));
+
+      if (oldName) {
+        const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
+        const updated = expensesList.map((e) =>
+          e.subcategory === oldName ? { ...e, subcategory: trimmed } : e,
+        );
+        localStorage.setItem("expenses", JSON.stringify(updated));
+      }
+      return { success: true };
+    }
+    throw new Error("Database not initialized");
+  }
+
+  const [existingSub] = await db
+    .select()
+    .from(subcategories)
+    .where(eq(subcategories.id, id))
+    .limit(1);
+  if (!existingSub) throw new Error("Subcategory not found");
+
+  await db.update(subcategories).set({ name: trimmed }).where(eq(subcategories.id, id));
+
+  // Keep denormalized expense.subcategory strings in sync
+  await db
+    .update(expenses)
+    .set({ subcategory: trimmed })
+    .where(eq(expenses.subcategory, existingSub.name));
+
+  return { success: true };
+};
+
+// Delete a subcategory — reassign matching expenses' subcategory to NULL
+export const deleteSubcategory = async (id) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("categories") || "[]");
+      let removedName = null;
+      for (const cat of list) {
+        const idx = (cat.subcategories || []).findIndex((s) => s.id === id);
+        if (idx > -1) {
+          removedName = cat.subcategories[idx].name;
+          cat.subcategories.splice(idx, 1);
+          break;
+        }
+      }
+      localStorage.setItem("categories", JSON.stringify(list));
+
+      if (removedName) {
+        const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
+        const updated = expensesList.map((e) =>
+          e.subcategory === removedName ? { ...e, subcategory: null } : e,
+        );
+        localStorage.setItem("expenses", JSON.stringify(updated));
+      }
+      return { success: true };
+    }
+    throw new Error("Database not initialized");
+  }
+
+  const [existingSub] = await db
+    .select()
+    .from(subcategories)
+    .where(eq(subcategories.id, id))
+    .limit(1);
+  if (!existingSub) return { success: true };
+
+  await db
+    .update(expenses)
+    .set({ subcategory: null })
+    .where(eq(expenses.subcategory, existingSub.name));
+
+  await db.delete(subcategories).where(eq(subcategories.id, id));
+
+  return { success: true };
+};
+
+
+
 
 /** ==============================
  *  BUDGET BUSINESS LOGIC
@@ -240,53 +409,60 @@ export const saveBudget = async ({ month, amount }) => {
 
 export const initDatabase = async () => {
   // Web Seeding Fallback
-  if (!db) {
-    if (Platform.OS === "web") {
-      const existing = localStorage.getItem("categories");
-      if (!existing || JSON.parse(existing).length === 0) {
-        const defaultCats = [
-          {
-            id: 1,
-            name: "Food",
-            color: "#EF4444",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            name: "Groceries",
-            color: "#10B981",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 3,
-            name: "Transport",
-            color: "#3B82F6",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 4,
-            name: "Shopping",
-            color: "#F59E0B",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 5,
-            name: "Entertainment",
-            color: "#8B5CF6",
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 6,
-            name: "Bills",
-            color: "#14B8A6",
-            createdAt: new Date().toISOString(),
-          },
-        ];
-        localStorage.setItem("categories", JSON.stringify(defaultCats));
+    if (!db) {
+      if (Platform.OS === "web") {
+        const existing = localStorage.getItem("categories");
+        if (!existing || JSON.parse(existing).length === 0) {
+          const defaultCats = [
+            {
+              id: 1,
+              name: "Food",
+              color: "#EF4444",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 2,
+              name: "Groceries",
+              color: "#10B981",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 3,
+              name: "Transport",
+              color: "#3B82F6",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 4,
+              name: "Shopping",
+              color: "#F59E0B",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 5,
+              name: "Entertainment",
+              color: "#8B5CF6",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+            {
+              id: 6,
+              name: "Bills",
+              color: "#14B8A6",
+              subcategories: [],
+              createdAt: new Date().toISOString(),
+            },
+          ];
+          localStorage.setItem("categories", JSON.stringify(defaultCats));
+        }
       }
+      return;
     }
-    return;
-  }
+
 
   try {
     // Create Tables
@@ -296,6 +472,16 @@ export const initDatabase = async () => {
         name TEXT NOT NULL UNIQUE,
         color TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await db.run(sql`
+      CREATE TABLE IF NOT EXISTS subcategories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(category_id, name)
       );
     `);
 
@@ -342,6 +528,21 @@ export const initDatabase = async () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+    // NEW: migrate `expenses` — add nullable `subcategory` column if missing
+    try {
+      const expenseCols = await db.run(sql`PRAGMA table_info(expenses)`);
+      const hasSubcategory = (expenseCols.rows || []).some(
+        (r) => r.name === "subcategory",
+      );
+      if (!hasSubcategory) {
+        await db.run(sql`ALTER TABLE expenses ADD COLUMN subcategory TEXT`);
+        console.log("Migrated expenses: added nullable subcategory column");
+      }
+    } catch (migErr) {
+      console.warn("Expense subcategory migration check skipped", migErr);
+    }
+
     // Migration: add remote_id + sync_status columns if missing
     try {
       const tableInfo = await db.run(sql`PRAGMA table_info(fuel_logs)`);
@@ -375,12 +576,19 @@ export const initDatabase = async () => {
         const extraCols = [];
         if (!hasRemoteId) extraCols.push("NULL as remote_id");
         if (!hasSyncStatus) extraCols.push("'pending' as sync_status");
-        const selectExpr = extraCols.length > 0
-          ? `${selectCols}, ${extraCols.join(", ")}`
-          : selectCols;
-        await db.run(sql.raw(`INSERT INTO fuel_logs (${oldCols}${!hasRemoteId ? ', remote_id' : ''}${!hasSyncStatus ? ', sync_status' : ''}) SELECT ${selectExpr} FROM fuel_logs_old`));
+        const selectExpr =
+          extraCols.length > 0
+            ? `${selectCols}, ${extraCols.join(", ")}`
+            : selectCols;
+        await db.run(
+          sql.raw(
+            `INSERT INTO fuel_logs (${oldCols}${!hasRemoteId ? ", remote_id" : ""}${!hasSyncStatus ? ", sync_status" : ""}) SELECT ${selectExpr} FROM fuel_logs_old`,
+          ),
+        );
         await db.run(sql`DROP TABLE fuel_logs_old`);
-        console.log("Migrated fuel_logs: added remote_id, sync_status, nullable odometer_km");
+        console.log(
+          "Migrated fuel_logs: added remote_id, sync_status, nullable odometer_km",
+        );
       }
     } catch (migErr) {
       console.warn("Fuel migration check skipped", migErr);

@@ -475,6 +475,9 @@ export default function BudgetsScreen() {
                                     {item.date}
                                   </Text>
                                 </View>
+                                <Text className="text-xs text-gray-400 dark:text-gray-500">
+                                  {item.subcategory ? item.subcategory : ""}
+                                </Text>
                               </View>
                             </View>
 

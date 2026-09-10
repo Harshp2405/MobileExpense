@@ -26,6 +26,10 @@ export const exportToPDF = async ({ expenses, monthName, year, totalSpent }) => 
           padding-bottom: 24px;
           margin-bottom: 30px;
         }
+          .tag-subcategory {
+  background: #E0E7FF;
+  color: #4338CA;
+}
         .title-area h1 {
           font-size: 28px;
           font-weight: 900;
@@ -177,18 +181,26 @@ export const exportToPDF = async ({ expenses, monthName, year, totalSpent }) => 
           </tr>
         </thead>
         <tbody>
-          ${expenses.map(e => `
+          ${expenses
+            .map(
+              (e) => `
             <tr>
               <td>
                 <div class="expense-title">${e.title}</div>
-                ${e.description ? `<div class="expense-desc">${e.description}</div>` : ''}
+                ${e.description ? `<div class="expense-desc">${e.description}</div>` : ""}
               </td>
-              <td><span class="tag tag-category">${e.category || 'Other'}</span></td>
-              <td><span class="tag tag-method">${e.method || 'Cash'}</span></td>
+              <td>
+  <span class="tag tag-category">${e.category || "Other"}</span>
+  ${e.subcategory ? `<span class="tag tag-subcategory">${e.subcategory}</span>` : ""}
+</td>
+              
+              <td><span class="tag tag-method">${e.method || "Cash"}</span></td>
               <td>${e.date}</td>
               <td class="amount-val">₹${e.amount.toFixed(2)}</td>
             </tr>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </tbody>
       </table>
 
