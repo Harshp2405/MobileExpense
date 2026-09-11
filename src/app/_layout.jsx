@@ -6,6 +6,9 @@ import NetInfo from "@react-native-community/netinfo";
 import { syncAll } from "../lib/sync/syncManager";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { useThemePersist } from "../lib/utils/useThemePersist";
+import { registerBackupTask } from "../lib/backup/backgroundTask";
+import { Platform } from "react-native";
+
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
@@ -14,7 +17,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     initDatabase()
-      .then(() => setDbReady(true))
+      .then(async () => {
+        if (Platform.OS !== "web") {
+          await registerBackupTask();
+        }
+        setDbReady(true);
+      })
       .catch((e) => {
         console.error(e);
         setDbReady(true);

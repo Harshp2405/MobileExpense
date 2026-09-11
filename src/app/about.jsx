@@ -6,25 +6,31 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Linking,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "../lib/sync/syncManager";
+import { useThemePersist } from "../lib/utils/useThemePersist";
+import BackupScreen from "../components/BackupScreen";
 
 export default function AboutScreen() {
   const [apiStatus, setApiStatus] = useState("unknown"); // 'unknown', 'loading', 'online', 'offline'
   const [responseTime, setResponseTime] = useState(null);
+  // Inside AboutScreen
+  const { colorScheme } = useThemePersist();
+  const isDark = colorScheme === "dark";
 
   const checkApiHealth = async () => {
     try {
       setApiStatus("loading");
       const startTime = Date.now();
-      
+
       const res = await fetch(`${API_URL}/budget/delta`, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
       });
-      
+
       const endTime = Date.now();
       if (res.ok) {
         setApiStatus("online");
@@ -50,7 +56,6 @@ export default function AboutScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerClassName="p-6 pb-12"
       >
-
         <View className="bg-blue-600 rounded-3xl p-6 shadow-md mb-6 items-center">
           <View className="w-16 h-16 bg-white/20 rounded-2xl items-center justify-center mb-4">
             <Ionicons name="wallet" size={36} color="#FFFFFF" />
@@ -62,7 +67,6 @@ export default function AboutScreen() {
             v1.0.0 • Offline-First Edition
           </Text>
         </View>
-
         <Text className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 ml-1">
           Technical Architecture
         </Text>
@@ -77,41 +81,63 @@ export default function AboutScreen() {
           </View>
 
           <Text className="text-gray-500 text-sm leading-relaxed mb-4">
-            The application operates entirely offline-first. All transactions and budgets are committed instantly to a local database, ensuring fluid responsiveness regardless of network availability.
+            The application operates entirely offline-first. All transactions
+            and budgets are committed instantly to a local database, ensuring
+            fluid responsiveness regardless of network availability.
           </Text>
 
           <View className="space-y-3.5 border-t border-gray-100 pt-4">
             <View className="flex-row items-start">
-              <Ionicons name="phone-portrait-outline" size={16} color="#2563EB" className="mt-0.5 mr-3" />
+              <Ionicons
+                name="phone-portrait-outline"
+                size={16}
+                color="#2563EB"
+                className="mt-0.5 mr-3"
+              />
               <View className="flex-1">
-                <Text className="text-gray-800 text-xs font-bold mb-0.5">Local SQLite + Drizzle ORM</Text>
+                <Text className="text-gray-800 text-xs font-bold mb-0.5">
+                  Local SQLite + Drizzle ORM
+                </Text>
                 <Text className="text-gray-400 text-[11px] leading-relaxed">
-                  Highly optimized native SQLite relational database queries using type-safe Drizzle builders (with automatic fallback to JSON-simulated localStorage inside web browsers).
+                  Highly optimized native SQLite relational database queries
+                  using type-safe Drizzle builders (with automatic fallback to
+                  JSON-simulated localStorage inside web browsers).
                 </Text>
               </View>
             </View>
 
             <View className="flex-row items-start">
-              <Ionicons name="cloud-outline" size={16} color="#2563EB" className="mt-0.5 mr-3" />
+              <Ionicons
+                name="cloud-outline"
+                size={16}
+                color="#2563EB"
+                className="mt-0.5 mr-3"
+              />
               <View className="flex-1">
-                <Text className="text-gray-800 text-xs font-bold mb-0.5">MongoDB Atlas + Express Cloud Sync</Text>
+                <Text className="text-gray-800 text-xs font-bold mb-0.5">
+                  MongoDB Atlas + Express Cloud Sync
+                </Text>
                 <Text className="text-gray-400 text-[11px] leading-relaxed">
-                  Pushes pending records to MongoDB API clusters and pulls server-side updates dynamically since the last recorded sync token. Includes deletion reconciliation mechanics.
+                  Pushes pending records to MongoDB API clusters and pulls
+                  server-side updates dynamically since the last recorded sync
+                  token. Includes deletion reconciliation mechanics.
                 </Text>
               </View>
             </View>
           </View>
         </View>
-
-
         <Text className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 ml-1">
           Server Health & Diagnostics
         </Text>
         <View className="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm mb-6">
           <View className="flex-row justify-between items-center mb-4">
             <View>
-              <Text className="text-gray-800 text-sm font-bold">API Endpoint</Text>
-              <Text className="text-gray-400 text-xs mt-0.5">{API_URL.replace("https://", "").replace("http://", "")}</Text>
+              <Text className="text-gray-800 text-sm font-bold">
+                API Endpoint
+              </Text>
+              <Text className="text-gray-400 text-xs mt-0.5">
+                {API_URL.replace("https://", "").replace("http://", "")}
+              </Text>
             </View>
             <TouchableOpacity
               onPress={checkApiHealth}
@@ -133,8 +159,8 @@ export default function AboutScreen() {
                   apiStatus === "online"
                     ? "bg-emerald-100"
                     : apiStatus === "offline"
-                    ? "bg-red-100"
-                    : "bg-gray-200"
+                      ? "bg-red-100"
+                      : "bg-gray-200"
                 }`}
               >
                 <View
@@ -142,8 +168,8 @@ export default function AboutScreen() {
                     apiStatus === "online"
                       ? "bg-emerald-500"
                       : apiStatus === "offline"
-                      ? "bg-red-500"
-                      : "bg-gray-400"
+                        ? "bg-red-500"
+                        : "bg-gray-400"
                   }`}
                 />
               </View>
@@ -152,8 +178,8 @@ export default function AboutScreen() {
                   {apiStatus === "online"
                     ? "Cloud Online"
                     : apiStatus === "offline"
-                    ? "Cloud Offline"
-                    : "Checking..."}
+                      ? "Cloud Offline"
+                      : "Checking..."}
                 </Text>
                 {responseTime && (
                   <Text className="text-gray-400 text-[10px] font-semibold mt-0.5">
@@ -164,7 +190,6 @@ export default function AboutScreen() {
             </View>
           </View>
         </View>
-
         {/* 💻 Developer Info Card */}
         <Text className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 ml-1">
           Developer Details
@@ -175,21 +200,44 @@ export default function AboutScreen() {
               <Ionicons name="code-slash" size={20} color="#2563EB" />
             </View>
             <View>
-              <Text className="text-gray-800 text-base font-extrabold">Harsh</Text>
-              <Text className="text-gray-400 text-xs">Full-Stack Mobile Engineer</Text>
+              <Text className="text-gray-800 text-base font-extrabold">
+                Harsh
+              </Text>
+              <Text className="text-gray-400 text-xs">
+                Full-Stack Mobile Engineer
+              </Text>
             </View>
           </View>
 
           <View className="border-t border-gray-100 pt-4 flex-row justify-between items-center">
-            <Text className="text-gray-500 text-xs font-bold">Project Repository</Text>
+            <Text className="text-gray-500 text-xs font-bold">
+              Project Repository
+            </Text>
             <TouchableOpacity
-              onPress={() => Linking.openURL("https://github.com/Harshp2405/Gsap_Tutorial")}
+              onPress={() =>
+                Linking.openURL("https://github.com/Harshp2405/Gsap_Tutorial")
+              }
               className="flex-row items-center bg-blue-50 px-3.5 py-2 rounded-xl"
             >
               <Ionicons name="logo-github" size={14} color="#2563EB" />
-              <Text className="text-blue-600 text-xs font-bold ml-1.5">Github</Text>
+              <Text className="text-blue-600 text-xs font-bold ml-1.5">
+                Github
+              </Text>
             </TouchableOpacity>
           </View>
+        </View>
+        {/* Inside ScrollView, after all existing content: */}
+        <View style={{ marginTop: 24, paddingHorizontal: 2 }}>
+          <Text className="text-base font-extrabold text-gray-900 dark:text-gray-100 mb-3">
+            Backup & Restore
+          </Text>
+          {Platform.OS === "web" ? (
+            <Text className="text-sm text-gray-500 dark:text-gray-400">
+              Google Drive backup is available in the native Android/iOS build.
+            </Text>
+          ) : (
+            <BackupScreen isDark={isDark} />
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
