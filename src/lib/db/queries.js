@@ -5,7 +5,7 @@ import {
   categories,
   fuelLogs,
   subcategories,
-  income
+  income,
 } from "./schema";
 import { eq, desc, sum, asc, sql } from "drizzle-orm";
 import { Platform } from "react-native";
@@ -66,11 +66,19 @@ export const addExpense = async ({
   }
   const result = await db
     .insert(expenses)
-    .values({ title, amount, category, subcategory: subcategory || null, date, description, month, method })
+    .values({
+      title,
+      amount,
+      category,
+      subcategory: subcategory || null,
+      date,
+      description,
+      month,
+      method,
+    })
     .returning();
   return result[0];
 };
-
 
 // Monthly history (AGGREGATION)
 export const getExpenseHistory = async () => {
@@ -113,7 +121,7 @@ export const deleteExpense = async (id) => {
   try {
     await db.delete(expenses).where(eq(expenses.id, id));
     return { success: true };
-  } catch (err) {
+  } catch {
     throw new Error("Failed to delete expense");
   }
 };
@@ -190,8 +198,6 @@ export const deleteCategory = async (id, name) => {
   return { success: true };
 };
 
-
-
 /** ==============================
  *  SUBCATEGORIES BUSINESS LOGIC
  *  ============================== */
@@ -227,7 +233,12 @@ export const addSubcategory = async ({ categoryId, name }) => {
         (s) => s.name.toLowerCase() === trimmed.toLowerCase(),
       );
       if (exists) throw new Error("Subcategory already exists");
-      const newSub = { id: Date.now(), categoryId, name: trimmed, createdAt: new Date().toISOString() };
+      const newSub = {
+        id: Date.now(),
+        categoryId,
+        name: trimmed,
+        createdAt: new Date().toISOString(),
+      };
       list[idx].subcategories.push(newSub);
       localStorage.setItem("categories", JSON.stringify(list));
       return newSub;
@@ -271,7 +282,9 @@ export const updateSubcategory = async (id, { name }) => {
       localStorage.setItem("categories", JSON.stringify(list));
 
       if (oldName) {
-        const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
+        const expensesList = JSON.parse(
+          localStorage.getItem("expenses") || "[]",
+        );
         const updated = expensesList.map((e) =>
           e.subcategory === oldName ? { ...e, subcategory: trimmed } : e,
         );
@@ -289,7 +302,10 @@ export const updateSubcategory = async (id, { name }) => {
     .limit(1);
   if (!existingSub) throw new Error("Subcategory not found");
 
-  await db.update(subcategories).set({ name: trimmed }).where(eq(subcategories.id, id));
+  await db
+    .update(subcategories)
+    .set({ name: trimmed })
+    .where(eq(subcategories.id, id));
 
   // Keep denormalized expense.subcategory strings in sync
   await db
@@ -317,7 +333,9 @@ export const deleteSubcategory = async (id) => {
       localStorage.setItem("categories", JSON.stringify(list));
 
       if (removedName) {
-        const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
+        const expensesList = JSON.parse(
+          localStorage.getItem("expenses") || "[]",
+        );
         const updated = expensesList.map((e) =>
           e.subcategory === removedName ? { ...e, subcategory: null } : e,
         );
@@ -344,9 +362,6 @@ export const deleteSubcategory = async (id) => {
 
   return { success: true };
 };
-
-
-
 
 /** ==============================
  *  BUDGET BUSINESS LOGIC
@@ -410,60 +425,59 @@ export const saveBudget = async ({ month, amount }) => {
 
 export const initDatabase = async () => {
   // Web Seeding Fallback
-    if (!db) {
-      if (Platform.OS === "web") {
-        const existing = localStorage.getItem("categories");
-        if (!existing || JSON.parse(existing).length === 0) {
-          const defaultCats = [
-            {
-              id: 1,
-              name: "Food",
-              color: "#EF4444",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 2,
-              name: "Groceries",
-              color: "#10B981",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 3,
-              name: "Transport",
-              color: "#3B82F6",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 4,
-              name: "Shopping",
-              color: "#F59E0B",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 5,
-              name: "Entertainment",
-              color: "#8B5CF6",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: 6,
-              name: "Bills",
-              color: "#14B8A6",
-              subcategories: [],
-              createdAt: new Date().toISOString(),
-            },
-          ];
-          localStorage.setItem("categories", JSON.stringify(defaultCats));
-        }
+  if (!db) {
+    if (Platform.OS === "web") {
+      const existing = localStorage.getItem("categories");
+      if (!existing || JSON.parse(existing).length === 0) {
+        const defaultCats = [
+          {
+            id: 1,
+            name: "Food",
+            color: "#EF4444",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 2,
+            name: "Groceries",
+            color: "#10B981",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 3,
+            name: "Transport",
+            color: "#3B82F6",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 4,
+            name: "Shopping",
+            color: "#F59E0B",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 5,
+            name: "Entertainment",
+            color: "#8B5CF6",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: 6,
+            name: "Bills",
+            color: "#14B8A6",
+            subcategories: [],
+            createdAt: new Date().toISOString(),
+          },
+        ];
+        localStorage.setItem("categories", JSON.stringify(defaultCats));
       }
-      return;
     }
-
+    return;
+  }
 
   try {
     // Create Tables
@@ -545,7 +559,6 @@ export const initDatabase = async () => {
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
-
 
     // NEW: migrate `expenses` — add nullable `subcategory` column if missing
     try {
@@ -758,7 +771,6 @@ export const calculateFuelAverage = (logs) => {
   };
 };
 
-
 /** ==============================
  *  ANALYTICS DATA ACCESS
  *  ============================== */
@@ -788,7 +800,15 @@ export const getAllIncome = async () => {
 };
 
 // Add an income entry (mirrors addExpense)
-export const addIncome = async ({ title, amount, source, date, description, month, method }) => {
+export const addIncome = async ({
+  title,
+  amount,
+  source,
+  date,
+  description,
+  month,
+  method,
+}) => {
   if (!db) {
     if (Platform.OS === "web") {
       const list = JSON.parse(localStorage.getItem("income") || "[]");
@@ -839,4 +859,28 @@ export const getAvailableYears = async () => {
   });
   const list = Array.from(years).sort((a, b) => Number(b) - Number(a));
   return list.length > 0 ? list : [String(new Date().getFullYear())];
+};
+
+export const getFuelLogsByMonth = async (month) => {
+  if (!month) return [];
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
+
+      return list
+        .filter((log) => log.month === month)
+        .sort((first, second) =>
+          String(second.date || "").localeCompare(String(first.date || "")),
+        );
+    }
+
+    return [];
+  }
+
+  return await db
+    .select()
+    .from(fuelLogs)
+    .where(eq(fuelLogs.month, month))
+    .orderBy(desc(fuelLogs.id));
 };

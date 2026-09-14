@@ -29,6 +29,7 @@ import {
   getCategories,
   deleteExpense,
   getSubcategories,
+  getFuelLogsByMonth,
 } from "../../lib/db/queries";
 
 import { exportToPDF } from "../../lib/utils/pdfExporter";
@@ -116,7 +117,7 @@ export default function ExpensesScreen() {
 
   const [description, setDescription] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -152,12 +153,12 @@ export default function ExpensesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [monthKey]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [monthKey]),
+    }, [loadData]),
   );
 
   const openModal = async () => {
@@ -225,46 +226,88 @@ export default function ExpensesScreen() {
       setModalVisible(false);
       await loadData();
 
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Failed to add expense");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleExport = async () => {
-    if (expenses.length === 0) {
-      Alert.alert(
-        "No Expenses",
+  // const handleExport = async () => {
+  //   if (expenses.length === 0) {
+  //     Alert.alert(
+  //       "No Expenses",
 
-        "There are no expenses in this month to export.",
+  //       "There are no expenses in this month to export.",
+  //     );
+
+  //     return;
+  //   }
+
+  //   try {
+  //     const savedPath = await exportToPDF({
+  //       expenses,
+
+  //       monthName: MONTHS[selectedMonth],
+
+  //       year: selectedYear,
+
+  //       totalSpent,
+  //     });
+
+  //     const filename = savedPath.split("/").pop();
+
+  //     Alert.alert(
+  //       "Download Complete",
+
+  //       `Saved to local storage as:\n\n${filename}`,
+  //     );
+  //   } catch (e) {
+  //     Alert.alert("Error", "Failed to export PDF report.");
+  //   }
+  // };
+
+  const handleExport = async () => {
+    try {
+      const fuelLogs = await getFuelLogsByMonth(monthKey);
+
+      if (expenses.length === 0 && fuelLogs.length === 0) {
+        Alert.alert(
+          "Nothing to Export",
+          "There are no expenses or fuel logs in this month.",
+        );
+        return;
+      }
+
+      const fuelTotal = fuelLogs.reduce(
+        (total, log) => total + Number(log.totalCost || 0),
+        0,
       );
 
-      return;
-    }
+      const combinedTotal = Number(totalSpent || 0) + fuelTotal;
 
-    try {
       const savedPath = await exportToPDF({
         expenses,
-
+        fuelLogs,
         monthName: MONTHS[selectedMonth],
-
         year: selectedYear,
-
-        totalSpent,
+        totalSpent: Number(totalSpent || 0),
+        fuelTotal,
+        combinedTotal,
       });
 
       const filename = savedPath.split("/").pop();
 
       Alert.alert(
         "Download Complete",
-
         `Saved to local storage as:\n\n${filename}`,
       );
-    } catch (e) {
+    } catch (error) {
+      console.error("Failed to export expense and fuel report", error);
       Alert.alert("Error", "Failed to export PDF report.");
     }
   };
+
 
   const swipeableRefs = useRef({});
 
