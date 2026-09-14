@@ -242,7 +242,7 @@ export default function CategoriesScreen() {
                   </Text>
 
                   <Text className="text-base  text-gray-900 dark:text-gray-100 mx-2">
-                    {item.subcategories.length}
+                    {subs.length}
                   </Text>
                   <TouchableOpacity
                     onPress={() => handleDelete(item.id, item.name)}
