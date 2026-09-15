@@ -9,6 +9,7 @@ import {
 } from "./schema";
 import { eq, desc, sum, asc, sql } from "drizzle-orm";
 import { Platform } from "react-native";
+import { deleteLocalImage } from "../utils/imageManager";
 
 /** ==============================
  *  EXPENSE BUSINESS LOGIC
@@ -42,6 +43,7 @@ export const addExpense = async ({
   description,
   month,
   method,
+  imageUri,
 }) => {
   if (!db) {
     if (Platform.OS === "web") {
@@ -56,6 +58,7 @@ export const addExpense = async ({
         description: description || "",
         month,
         method,
+        imageUri: imageUri || null,
         createdAt: new Date().toISOString(),
       };
       list.push(newExpense);
@@ -75,6 +78,7 @@ export const addExpense = async ({
       description,
       month,
       method,
+      imageUri: imageUri || null,
     })
     .returning();
   return result[0];
@@ -111,14 +115,27 @@ export const getExpenseHistory = async () => {
 export const deleteExpense = async (id) => {
   if (!db) {
     if (Platform.OS === "web") {
-      let list = JSON.parse(localStorage.getItem("expenses") || "[]");
-      list = list.filter((e) => e.id !== id);
-      localStorage.setItem("expenses", JSON.stringify(list));
+      const list = JSON.parse(localStorage.getItem("expenses") || "[]");
+      const deleted = list.find((e) => e.id === id);
+      if (deleted?.imageUri) {
+        deleteLocalImage(deleted.imageUri);
+      }
+      const nextList = list.filter((e) => e.id !== id);
+      localStorage.setItem("expenses", JSON.stringify(nextList));
       return { success: true };
     }
     return { success: false };
   }
   try {
+    const existing = await db
+      .select()
+      .from(expenses)
+      .where(eq(expenses.id, id));
+
+    if (existing[0]?.imageUri) {
+      await deleteLocalImage(existing[0].imageUri);
+    }
+
     await db.delete(expenses).where(eq(expenses.id, id));
     return { success: true };
   } catch {

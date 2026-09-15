@@ -12,6 +12,7 @@ export const expenses = sqliteTable("expenses", {
   description: text("description"),
   month: text("month").notNull(),
   method: text("method"),
+  imageUri: text("image_uri"), // <-- NEW: Stores local file URI or Cloud Storage URL
   syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });

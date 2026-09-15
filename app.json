@@ -45,8 +45,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Used to pick receipt images from your gallery.",
-          "cameraPermission": "Used to capture receipt photos."
+          "photosPermission": "Allow ExpenseTracker to access your photos to attach bill and receipt images.",
+          "cameraPermission": "Allow ExpenseTracker to access your camera to take receipt and bill photos."
         }
       ],
       [
@@ -59,6 +59,7 @@
           }
         }
       ],
+
       "expo-sqlite",
       "expo-sharing",
       "expo-web-browser",

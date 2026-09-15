@@ -32,8 +32,8 @@ const MENU_ITEMS = [
   },
   {
     name: "Analytics",
-    icon: "chart-outline",
-    activeIcon: "chart-outline",
+    icon: "stats-chart",
+    activeIcon: "stats-chart-outline",
     route: "/(tabt)",
   },
 ];

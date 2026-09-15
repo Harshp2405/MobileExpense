@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -37,6 +38,7 @@ import { exportToPDF } from "../../lib/utils/pdfExporter";
 import { syncAll } from "../../lib/sync/syncManager";
 
 import { useColorScheme } from "nativewind";
+import ReceiptPicker from "@/components/ReceiptPicker";
 
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
@@ -86,6 +88,9 @@ export default function ExpensesScreen() {
   const [categoryList, setCategoryList] = useState([]);
 
   const [saving, setSaving] = useState(false);
+
+  const [imageUri, setImageUri] = useState(null);
+  const [previewImageUri, setPreviewImageUri] = useState(null);
 
   // Filter Selector State
 
@@ -193,6 +198,21 @@ export default function ExpensesScreen() {
     setDescription("");
     setSubcategory(""); // NEW
     setSubcategoryList([]); // NEW
+    setImageUri(null); // NEW
+  };
+
+  const handleImageSelected = (uri) => {
+    setImageUri(uri);
+  };
+
+  const handleImageRemoved = () => {
+    setImageUri(null);
+  };
+
+  const openImagePreview = (uri) => {
+    if (uri) {
+      setPreviewImageUri(uri);
+    }
   };
 
   const handleSave = async () => {
@@ -220,6 +240,7 @@ export default function ExpensesScreen() {
         description: description.trim(),
         month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
         method,
+        imageUri: imageUri || null, // <-- Saved to SQLite
       });
 
       resetForm();
@@ -454,9 +475,19 @@ export default function ExpensesScreen() {
                 className="bg-white dark:bg-zinc-800 p-4 rounded-2xl mb-4 shadow-sm border border-gray-100 dark:border-zinc-700 flex-row justify-between items-center"
               >
                 <View className="flex-row items-center flex-1">
-                  <View className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-full items-center justify-center mr-4">
-                    <Ionicons name="wallet-outline" size={24} color="#2563EB" />
-                  </View>
+                  {item.imageUri ? (
+                    <TouchableOpacity onPress={() => openImagePreview(item.imageUri)}>
+                      <Image
+                        source={{ uri: item.imageUri }}
+                        className="w-12 h-12 rounded-xl mr-4"
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-full items-center justify-center mr-4">
+                      <Ionicons name="wallet-outline" size={24} color="#2563EB" />
+                    </View>
+                  )}
 
                   <View>
                     <Text className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0.5">
@@ -478,6 +509,25 @@ export default function ExpensesScreen() {
             </Swipeable>
           )}
         />
+      )}
+
+      {previewImageUri && (
+        <Modal visible={!!previewImageUri} transparent animationType="fade">
+          <View className="flex-1 bg-black/90 justify-center items-center p-4">
+            <TouchableOpacity
+              onPress={() => setPreviewImageUri(null)}
+              className="absolute top-12 right-6 z-10 w-10 h-10 rounded-full bg-white/20 items-center justify-center"
+            >
+              <Ionicons name="close" size={24} color="#FFF" />
+            </TouchableOpacity>
+
+            <Image
+              source={{ uri: previewImageUri }}
+              className="w-full h-4/5 rounded-2xl"
+              resizeMode="contain"
+            />
+          </View>
+        </Modal>
       )}
 
       {/* Add Expense Modal */}
@@ -538,7 +588,7 @@ export default function ExpensesScreen() {
                 <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                   Category
                 </Text>
-                
+
                 {categoryList.length > 0 ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                     <View className="flex-row gap-2">
@@ -634,6 +684,18 @@ export default function ExpensesScreen() {
                   placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                   textAlignVertical="top"
                 />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Image / Bill / Receipt
+                </Text>
+                <View>
+                  <ReceiptPicker
+                    imageUri={imageUri}
+                    onImageSelected={handleImageSelected}
+                    onImageRemoved={handleImageRemoved}
+                    isDark={isDark}
+                  />
+                </View>
 
                 <TouchableOpacity
                   onPress={handleSave}
