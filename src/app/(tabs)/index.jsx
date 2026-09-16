@@ -40,6 +40,11 @@ import { syncAll } from "../../lib/sync/syncManager";
 import { useColorScheme } from "nativewind";
 import ReceiptPicker from "@/components/ReceiptPicker";
 
+import * as DocumentPicker from "expo-document-picker";
+import { exportExpensesToExcel } from "../../lib/excel/exportExcel";
+import { importExpensesFromFile } from "../../lib/excel/importExcel";
+import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplate";
+
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
 const MONTHS = [
@@ -92,6 +97,18 @@ export default function ExpensesScreen() {
   const [imageUri, setImageUri] = useState(null);
   const [previewImageUri, setPreviewImageUri] = useState(null);
 
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipText, setTooltipText] = useState("");
+
+  const showActionTooltip = (text) => {
+    setTooltipText(text);
+    setShowTooltip(true);
+
+    setTimeout(() => {
+      setShowTooltip(false);
+      setTooltipText("");
+    }, 1200);
+  };
   // Filter Selector State
 
   const now = new Date();
@@ -330,6 +347,72 @@ export default function ExpensesScreen() {
   };
 
 
+  
+const handleExportExcel = async () => {
+    try {
+      if (expenses.length === 0) {
+        Alert.alert(
+          "No Expenses",
+          "There are no expenses in this month to export to Excel.",
+        );
+        return;
+      }
+
+      const savedPath = await exportExpensesToExcel({
+        expenses,
+        monthName: MONTHS[selectedMonth],
+        year: selectedYear,
+      });
+
+      const filename = savedPath.split("/").pop();
+
+      Alert.alert(
+        "Excel Export Complete",
+        `Saved to local storage as:\n\n${filename}`,
+      );
+    } catch (error) {
+      console.error("Failed to export Excel report", error);
+      Alert.alert("Error", "Failed to export Excel report.");
+    }
+  };
+
+  const handleImportExcel = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "text/csv",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets?.[0];
+      if (!file) return;
+
+      const fileType = file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv";
+      const response = await fetch(file.uri);
+      const arrayBuffer = await response.arrayBuffer();
+
+      const importedCount = await importExpensesFromFile(arrayBuffer, fileType);
+
+      Alert.alert("Import successful", `${importedCount} expenses imported.`);
+      await loadData();
+    } catch (error) {
+      Alert.alert("Import failed", error.message || "Unable to import file");
+    }
+  };
+
+  const handleDownloadSample = async () => {
+    try {
+      await downloadSampleExcelTemplate();
+    } catch (error) {
+      console.error("Failed to download sample file", error);
+      Alert.alert("Failed", "Could not download sample file");
+    }
+  };
+
   const swipeableRefs = useRef({});
 
   const handleDelete = (id) => {
@@ -426,24 +509,107 @@ export default function ExpensesScreen() {
                   </Text>
                 </View>
 
-                <View className="flex-row gap-2">
-                  <TouchableOpacity
-                    onPress={handleExport}
-                    className="bg-gray-100 dark:bg-zinc-800 w-12 h-12 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
-                  >
-                    <Ionicons
-                      name="share-outline"
-                      size={22}
-                      color={isDark ? "#9CA3AF" : "#4B5563"}
-                    />
-                  </TouchableOpacity>
+                <View className="flex-row gap-2 items-center">
+                  <View className="relative items-center">
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleDownloadSample();
+                        showActionTooltip("Sample");
+                      }}
+                      className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
+                    >
+                      <Ionicons
+                        name="document-text-outline"
+                        size={18}
+                        color="#2563EB"
+                      />
+                    </TouchableOpacity>
+                    {showTooltip && tooltipText === "Sample" && (
+                      <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
+                        <Text className="text-[10px] text-white">Sample</Text>
+                      </View>
+                    )}
+                  </View>
 
-                  <TouchableOpacity
-                    onPress={openModal}
-                    className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center shadow-sm"
-                  >
-                    <Ionicons name="add" size={24} color="white" />
-                  </TouchableOpacity>
+                  <View className="relative items-center">
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleExportExcel();
+                        showActionTooltip("Export Excel");
+                      }}
+                      className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
+                    >
+                      <Ionicons
+                        name="download-outline"
+                        size={18}
+                        color="#2563EB"
+                      />
+                    </TouchableOpacity>
+                    {showTooltip && tooltipText === "Export Excel" && (
+                      <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
+                        <Text className="text-[10px] text-white">Export Excel</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="relative items-center">
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleImportExcel();
+                        showActionTooltip("Import Excel");
+                      }}
+                      className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
+                    >
+                      <Ionicons
+                        name="cloud-upload-outline"
+                        size={18}
+                        color="#2563EB"
+                      />
+                    </TouchableOpacity>
+                    {showTooltip && tooltipText === "Import Excel" && (
+                      <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
+                        <Text className="text-[10px] text-white">Import Excel</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="relative items-center">
+                    <TouchableOpacity
+                      onPress={() => {
+                        handleExport();
+                        showActionTooltip("Export PDF");
+                      }}
+                      className="bg-gray-100 dark:bg-zinc-800 w-12 h-12 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
+                    >
+                      <Ionicons
+                        name="share-outline"
+                        size={22}
+                        color={isDark ? "#9CA3AF" : "#4B5563"}
+                      />
+                    </TouchableOpacity>
+                    {showTooltip && tooltipText === "Export PDF" && (
+                      <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
+                        <Text className="text-[10px] text-white">Export PDF</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="relative items-center">
+                    <TouchableOpacity
+                      onPress={() => {
+                        openModal();
+                        showActionTooltip("Add Expense");
+                      }}
+                      className="bg-blue-600 w-12 h-12 rounded-full items-center justify-center shadow-sm"
+                    >
+                      <Ionicons name="add" size={24} color="white" />
+                    </TouchableOpacity>
+                    {showTooltip && tooltipText === "Add Expense" && (
+                      <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
+                        <Text className="text-[10px] text-white">Add Expense</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
             </View>
@@ -476,7 +642,9 @@ export default function ExpensesScreen() {
               >
                 <View className="flex-row items-center flex-1">
                   {item.imageUri ? (
-                    <TouchableOpacity onPress={() => openImagePreview(item.imageUri)}>
+                    <TouchableOpacity
+                      onPress={() => openImagePreview(item.imageUri)}
+                    >
                       <Image
                         source={{ uri: item.imageUri }}
                         className="w-12 h-12 rounded-xl mr-4"
@@ -485,7 +653,11 @@ export default function ExpensesScreen() {
                     </TouchableOpacity>
                   ) : (
                     <View className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-full items-center justify-center mr-4">
-                      <Ionicons name="wallet-outline" size={24} color="#2563EB" />
+                      <Ionicons
+                        name="wallet-outline"
+                        size={24}
+                        color="#2563EB"
+                      />
                     </View>
                   )}
 
