@@ -535,10 +535,12 @@ export const initDatabase = async () => {
         title TEXT NOT NULL,
         amount REAL NOT NULL,
         category TEXT,
+        subcategory TEXT,
         date TEXT,
         description TEXT,
         month TEXT NOT NULL,
         method TEXT,
+        image_uri TEXT,
         sync_status TEXT DEFAULT 'pending',
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -580,15 +582,20 @@ export const initDatabase = async () => {
     // NEW: migrate `expenses` — add nullable `subcategory` column if missing
     try {
       const expenseCols = await db.run(sql`PRAGMA table_info(expenses)`);
-      const hasSubcategory = (expenseCols.rows || []).some(
-        (r) => r.name === "subcategory",
-      );
+      const cols = expenseCols.rows || [];
+      const hasSubcategory = cols.some((r) => r.name === "subcategory");
       if (!hasSubcategory) {
         await db.run(sql`ALTER TABLE expenses ADD COLUMN subcategory TEXT`);
         console.log("Migrated expenses: added nullable subcategory column");
       }
+      // NEW: migrate `image_uri` column if missing (was omitted from the original CREATE TABLE)
+      const hasImageUri = cols.some((r) => r.name === "image_uri");
+      if (!hasImageUri) {
+        await db.run(sql`ALTER TABLE expenses ADD COLUMN image_uri TEXT`);
+        console.log("Migrated expenses: added nullable image_uri column");
+      }
     } catch (migErr) {
-      console.warn("Expense subcategory migration check skipped", migErr);
+      console.warn("Expense migration check skipped", migErr);
     }
 
     // Migration: add remote_id + sync_status columns if missing
