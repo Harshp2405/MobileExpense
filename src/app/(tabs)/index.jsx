@@ -45,6 +45,10 @@ import { exportExpensesToExcel } from "../../lib/excel/exportExcel";
 import { importExpensesFromFile } from "../../lib/excel/importExcel";
 import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplate";
 
+import PrivacyText from "@/components/PrivacyText";
+import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
+
+
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
 const MONTHS = [
@@ -81,6 +85,8 @@ export default function ExpensesScreen() {
   const { colorScheme } = useColorScheme();
 
   const isDark = colorScheme === "dark";
+  const { isPrivate, togglePrivacy } = usePrivacyMode();
+
 
   const [expenses, setExpenses] = useState([]);
 
@@ -500,13 +506,25 @@ const handleExportExcel = async () => {
 
               <View className="flex-row justify-between items-center mb-8">
                 <View>
-                  <Text className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-                    Total Spent
-                  </Text>
+                  {/* Eye toggle button inline next to label */}
+                  <View className="flex-row items-center gap-2 mb-1">
+                    <Text className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Total Spent
+                    </Text>
+                    <TouchableOpacity onPress={togglePrivacy} hitSlop={8}>
+                      <Ionicons
+                        name={isPrivate ? "eye-off-outline" : "eye-outline"}
+                        size={16}
+                        color={isDark ? "#6B7280" : "#9CA3AF"}
+                      />
+                    </TouchableOpacity>
+                  </View>
 
-                  <Text className="text-4xl font-black text-gray-900 dark:text-gray-100">
-                    ₹{totalSpent.toFixed(2)}
-                  </Text>
+                  {/* PrivacyText replaces the raw Rs. amount */}
+                  <PrivacyText
+                    value={totalSpent}
+                    className="text-4xl font-black text-gray-900 dark:text-gray-100"
+                  />
                 </View>
 
                 <View className="flex-row gap-2 items-center">
@@ -673,10 +691,16 @@ const handleExportExcel = async () => {
                     </Text>
                   </View>
                 </View>
-
+{/* 
                 <Text className="text-lg font-bold text-gray-900 dark:text-gray-100">
                   ₹{item.amount.toFixed(2)}
                 </Text>
+ */}
+
+                <PrivacyText
+                  value={item.amount}
+                  className="text-base font-black text-gray-900 dark:text-gray-100"
+                />
               </TouchableOpacity>
             </Swipeable>
           )}

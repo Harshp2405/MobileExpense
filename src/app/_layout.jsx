@@ -1,3 +1,4 @@
+// src/app/_layout.jsx
 import { Drawer } from "expo-router/drawer";
 import "../../global.css";
 import { useEffect, useState } from "react";
@@ -9,11 +10,18 @@ import { useThemePersist } from "../lib/utils/useThemePersist";
 import { registerBackupTask } from "../lib/backup/backgroundTask";
 import { Platform } from "react-native";
 
+// NEW: Security + Privacy imports
+import { PrivacyProvider } from "../lib/privacy/usePrivacyMode";
+import { useBiometricAuth } from "../lib/auth/useBiometricAuth";
+import LockScreen from "../components/LockScreen";
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const { colorScheme } = useThemePersist();
   const isDark = colorScheme === "dark";
+
+  // Biometric gate — reads persisted user preference on mount
+  const { isLocked, isAuthenticating, authError, unlock } = useBiometricAuth();
 
   useEffect(() => {
     initDatabase()
@@ -28,11 +36,10 @@ export default function RootLayout() {
         setDbReady(true);
       });
   }, []);
-  // Auto-sync when device comes online
+
   useEffect(() => {
     if (!dbReady) return;
 
-    // Trigger sync immediately on mount if online
     NetInfo.fetch().then((state) => {
       if (state.isConnected && state.isInternetReachable) {
         console.log("Device initially online — triggering sync on mount...");
@@ -50,60 +57,74 @@ export default function RootLayout() {
     return () => unsubscribe();
   }, [dbReady]);
 
+  // DB not ready yet — block render
   if (!dbReady) {
-    return null; // Waits for db to create tables and seed
+    return null;
+  }
+
+  // Biometric gate is active — show lock screen instead of app content
+  if (isLocked) {
+    return (
+      <LockScreen
+        onUnlock={unlock}
+        isAuthenticating={isAuthenticating}
+        error={authError}
+      />
+    );
   }
 
   return (
-    <Drawer
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: isDark ? "#111827" : "#FFFFFF",
-        },
-        headerTintColor: isDark ? "#F9FAFB" : "#111827",
-        headerTitleStyle: {
-          fontWeight: "bold",
-          color: isDark ? "#F9FAFB" : "#111827",
-        },
-        drawerActiveBackgroundColor: "#e28585ff",
-        drawerStyle: {
-          backgroundColor: isDark ? "#111827" : "#FFFFFF",
-        },
-        drawerLabelStyle: {
-          color: isDark ? "#F9FAFB" : "#111827",
-        },
-        headerShadowVisible: false,
-      }}
-    >
-      <Drawer.Screen
-        name="(tabs)"
-        options={{
-          drawerLabel: "Dashboard",
-          title: "Overview",
+    // PrivacyProvider wraps the entire navigation tree
+    <PrivacyProvider>
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          headerStyle: {
+            backgroundColor: isDark ? "#111827" : "#FFFFFF",
+          },
+          headerTintColor: isDark ? "#F9FAFB" : "#111827",
+          headerTitleStyle: {
+            fontWeight: "bold",
+            color: isDark ? "#F9FAFB" : "#111827",
+          },
+          drawerActiveBackgroundColor: "#e28585ff",
+          drawerStyle: {
+            backgroundColor: isDark ? "#111827" : "#FFFFFF",
+          },
+          drawerLabelStyle: {
+            color: isDark ? "#F9FAFB" : "#111827",
+          },
+          headerShadowVisible: false,
         }}
-      />
-      <Drawer.Screen
-        name="about"
-        options={{
-          drawerLabel: "App Architecture & Info",
-          title: "Technical Architecture",
-        }}
-      />
-      <Drawer.Screen
-        name="(tabt)"
-        options={{
-          drawerLabel: "Analytics",
-          title: "Analyscies of Budget",
-        }}
-      />
-      <Drawer.Screen
-        name="index"
-        options={{
-          drawerItemStyle: { display: "none" },
-        }}
-      />
-    </Drawer>
+      >
+        <Drawer.Screen
+          name="(tabs)"
+          options={{
+            drawerLabel: "Dashboard",
+            title: "Overview",
+          }}
+        />
+        <Drawer.Screen
+          name="about"
+          options={{
+            drawerLabel: "App Architecture & Info",
+            title: "Technical Architecture",
+          }}
+        />
+        <Drawer.Screen
+          name="(tabt)"
+          options={{
+            drawerLabel: "Analytics",
+            title: "Analyscies of Budget",
+          }}
+        />
+        <Drawer.Screen
+          name="index"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+      </Drawer>
+    </PrivacyProvider>
   );
 }
-
