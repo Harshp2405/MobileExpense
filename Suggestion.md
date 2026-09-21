@@ -688,23 +688,23 @@ monthly-expense-{userId}-{yyyy-MM}
 
 ### Summary Matrix
 
-| Feature Category   | High-Impact Feature                       | Technical Feasibility | Stack Requirements              |
-| :----------------- | :---------------------------------------- | :-------------------- | :------------------------------ |
-| **Automation**     | Clipboard / SMS Smart Ingestion           | High                  | Regex / Clipboard API           |
-| **Automation**     | Receipt OCR Text Extraction               | Medium                | ML Kit / Vision API             |
-| **UX / Speed**     | Home Screen Quick Actions                 | High                  | `expo-quick-actions`            |
-| **Budgeting**      | Dynamic "Daily Safe-to-Spend"             | High                  | SQLite query / state logic      |
-| **Budgeting**      | Category Budgets & Push Thresholds        | High                  | `expo-notifications` + SQLite   |
-| **Budgeting**      | 50/30/20 Rule Financial Health Analyzer   | High                  | Categorization tag + Analytics  |
-| **Subscriptions**  | Recurring Bills & EMI Due Manager         | High                  | Local cron / notifications      |
-| **Vehicle / Fuel** | Mileage (KM/L) & Cost-Per-KM Analytics    | High                  | Computed on existing `fuelLogs` |
-| **Vehicle / Fuel** | Vehicle Service & PUC/Insurance Alerts    | High                  | `expo-notifications`            |
-| **Security**       | Biometric App Lock (Face ID/Fingerprint)  | High                  | `expo-local-authentication`     |
-| **Privacy**        | Public Stealth Mode (Hide Balance)        | High                  | Zustand / React Context         |
-| **Peer / Travel**  | Borrow & Lend Tracker (Udhar / Khatabook) | High                  | Dedicated SQLite table          |
-| **Peer / Travel**  | Trip Mode (#Tag Isolated Budgets)         | High                  | Tag column / filter view        |
-| **Savings**        | Target Savings Jars & Sinking Funds       | High                  | Dedicated SQLite table          |
-| **Tax & Search**   | Multi-Predicate Search & Tax Tagging      | High                  | SQL parameterized filters       |
+|     | Feature Category   | High-Impact Feature                       | Technical Feasibility | Stack Requirements              |
+| :-- | :------------------ | :----------------------------------------- | :---------------------- | :--------------------------------- |
+|     | **Automation**     | Clipboard / SMS Smart Ingestion           | High                  | Regex / Clipboard API           |
+|     | **Automation**     | Receipt OCR Text Extraction               | Medium                | ML Kit / Vision API             |
+|     | **UX / Speed**     | Home Screen Quick Actions                 | High                  | `expo-quick-actions`            |
+|     | **Budgeting**      | Dynamic "Daily Safe-to-Spend"             | High                  | SQLite query / state logic      |
+|     | **Budgeting**      | Category Budgets & Push Thresholds        | High                  | `expo-notifications` + SQLite   |
+|     | **Budgeting**      | 50/30/20 Rule Financial Health Analyzer   | High                  | Categorization tag + Analytics  |
+|     | **Subscriptions**  | Recurring Bills & EMI Due Manager         | High                  | Local cron / notifications      |
+|     | **Vehicle / Fuel** | Mileage (KM/L) & Cost-Per-KM Analytics    | High                  | Computed on existing `fuelLogs` |
+|     | **Vehicle / Fuel** | Vehicle Service & PUC/Insurance Alerts    | High                  | `expo-notifications`            |
+| ✅  | **Security**       | Biometric App Lock (Face ID/Fingerprint)  | High                  | `expo-local-authentication`     |
+| ✅  | **Privacy**        | Public Stealth Mode (Hide Balance)        | High                  | Zustand / React Context         |
+|     | **Peer / Travel**  | Borrow & Lend Tracker (Udhar / Khatabook) | High                  | Dedicated SQLite table          |
+|     | **Peer / Travel**  | Trip Mode (#Tag Isolated Budgets)         | High                  | Tag column / filter view        |
+|     | **Savings**        | Target Savings Jars & Sinking Funds       | High                  | Dedicated SQLite table          |
+|     | **Tax & Search**   | Multi-Predicate Search & Tax Tagging      | High                  | SQL parameterized filters       |
 
 ---
 
@@ -805,8 +805,7 @@ monthly-expense-{userId}-{yyyy-MM}
 
 ---
 
-## 5. Security & Privacy
-
+## ✅ 5. Security & Privacy ✅
 ### 5.1 Biometric Authentication (Face ID / Fingerprint / PIN Lock)
 
 - **Problem:** Financial data is personal and sensitive. Friends, family, or colleagues holding the phone could browse financial balances.
