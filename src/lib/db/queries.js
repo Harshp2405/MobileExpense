@@ -6,8 +6,10 @@ import {
   fuelLogs,
   subcategories,
   income,
+  accounts,
+  transfers,
 } from "./schema";
-import { eq, desc, sum, asc, sql } from "drizzle-orm";
+import { eq, desc, sum, asc, sql , and } from "drizzle-orm";
 import { Platform } from "react-native";
 import { deleteLocalImage } from "../utils/imageManager";
 
@@ -16,22 +18,29 @@ import { deleteLocalImage } from "../utils/imageManager";
  *  ============================= */
 
 // Get expenses by month
-export const getExpensesByMonth = async (month) => {
+export const getExpensesByMonth = async (month, accountId = null) => {
   if (!db) {
     if (Platform.OS === "web") {
       const list = JSON.parse(localStorage.getItem("expenses") || "[]");
       return list
-        .filter((e) => e.month === month)
+        .filter(
+          (e) => e.month === month && (!accountId || e.accountId === accountId),
+        )
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
     return [];
   }
+  const conditions = accountId
+    ? and(eq(expenses.month, month), eq(expenses.accountId, accountId))
+    : eq(expenses.month, month);
+
   return await db
     .select()
     .from(expenses)
-    .where(eq(expenses.month, month))
+    .where(conditions)
     .orderBy(desc(expenses.createdAt));
 };
+
 
 // Add expense
 export const addExpense = async ({
@@ -44,6 +53,7 @@ export const addExpense = async ({
   month,
   method,
   imageUri,
+  accountId, // NEW
 }) => {
   if (!db) {
     if (Platform.OS === "web") {
@@ -59,6 +69,7 @@ export const addExpense = async ({
         month,
         method,
         imageUri: imageUri || null,
+        accountId: accountId || null,
         createdAt: new Date().toISOString(),
       };
       list.push(newExpense);
@@ -79,6 +90,7 @@ export const addExpense = async ({
       month,
       method,
       imageUri: imageUri || null,
+      accountId: accountId || null, // NEW
     })
     .returning();
   return result[0];
@@ -579,6 +591,54 @@ export const initDatabase = async () => {
       );
     `);
 
+    await db.run(sql`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    type TEXT NOT NULL DEFAULT 'Cash',
+    color TEXT,
+    initial_balance REAL NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+    await db.run(sql`
+  CREATE TABLE IF NOT EXISTS transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    to_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    amount REAL NOT NULL,
+    date TEXT,
+    month TEXT NOT NULL,
+    note TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+    // Add account_id to expenses / income if missing
+    try {
+      const expenseCols =
+        (await db.run(sql`PRAGMA table_info(expenses)`)).rows || [];
+      if (!expenseCols.some((r) => r.name === "account_id")) {
+        await db.run(sql`ALTER TABLE expenses ADD COLUMN account_id INTEGER`);
+      }
+      const incomeCols =
+        (await db.run(sql`PRAGMA table_info(income)`)).rows || [];
+      if (!incomeCols.some((r) => r.name === "account_id")) {
+        await db.run(sql`ALTER TABLE income ADD COLUMN account_id INTEGER`);
+      }
+    } catch (migErr) {
+      console.warn("Account column migration skipped", migErr);
+    }
+
+    // Seed a default "Cash" account so existing users always have one to pick
+    const accountCheck = await db.select().from(accounts).limit(1);
+    if (accountCheck.length === 0) {
+      await db
+        .insert(accounts)
+        .values({ name: "Cash", type: "Cash", initialBalance: 0 });
+    }
+
     // NEW: migrate `expenses` — add nullable `subcategory` column if missing
     try {
       const expenseCols = await db.run(sql`PRAGMA table_info(expenses)`);
@@ -832,6 +892,7 @@ export const addIncome = async ({
   description,
   month,
   method,
+  accountId,
 }) => {
   if (!db) {
     if (Platform.OS === "web") {
@@ -846,6 +907,7 @@ export const addIncome = async ({
         month,
         method: method || "Cash",
         createdAt: new Date().toISOString(),
+        accountId: accountId || null, // NEW
       };
       list.push(newIncome);
       localStorage.setItem("income", JSON.stringify(list));
@@ -855,7 +917,16 @@ export const addIncome = async ({
   }
   const result = await db
     .insert(income)
-    .values({ title, amount, source, date, description, month, method })
+    .values({
+      title,
+      amount,
+      source,
+      date,
+      description,
+      month,
+      method,
+      accountId: accountId || null,
+    })
     .returning();
   return result[0];
 };
@@ -907,4 +978,190 @@ export const getFuelLogsByMonth = async (month) => {
     .from(fuelLogs)
     .where(eq(fuelLogs.month, month))
     .orderBy(desc(fuelLogs.id));
+};
+
+/** ACCOUNTS **/
+
+export const getAccounts = async () => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      return JSON.parse(localStorage.getItem("accounts") || "[]");
+    }
+    return [];
+  }
+  return await db.select().from(accounts).orderBy(asc(accounts.name));
+};
+
+export const addAccount = async ({ name, type, color, initialBalance }) => {
+  const trimmed = (name || "").trim();
+  if (!trimmed) throw new Error("Account name is required");
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("accounts") || "[]");
+      if (list.some((a) => a.name.toLowerCase() === trimmed.toLowerCase())) {
+        throw new Error("Account already exists");
+      }
+      const newAccount = {
+        id: Date.now(),
+        name: trimmed,
+        type: type || "Cash",
+        color: color || "#2563EB",
+        initialBalance: Number(initialBalance) || 0,
+        createdAt: new Date().toISOString(),
+      };
+      list.push(newAccount);
+      localStorage.setItem("accounts", JSON.stringify(list));
+      return newAccount;
+    }
+    throw new Error("Database not initialized");
+  }
+
+  const result = await db
+    .insert(accounts)
+    .values({
+      name: trimmed,
+      type: type || "Cash",
+      color: color || "#2563EB",
+      initialBalance: Number(initialBalance) || 0,
+    })
+    .returning();
+  return result[0];
+};
+export const deleteAccount = async (id) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      // Unassign transactions instead of deleting them (mirrors SQLite behavior)
+      const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]").map(
+        (e) => (e.accountId === id ? { ...e, accountId: null } : e),
+      );
+      localStorage.setItem("expenses", JSON.stringify(expensesList));
+
+      const incomeList = JSON.parse(localStorage.getItem("income") || "[]").map(
+        (i) => (i.accountId === id ? { ...i, accountId: null } : i),
+      );
+      localStorage.setItem("income", JSON.stringify(incomeList));
+
+      let list = JSON.parse(localStorage.getItem("accounts") || "[]");
+      list = list.filter((a) => a.id !== id);
+      localStorage.setItem("accounts", JSON.stringify(list));
+      return { success: true };
+    }
+    return { success: false };
+  }
+  // Unassign transactions instead of deleting them
+  await db
+    .update(expenses)
+    .set({ accountId: null })
+    .where(eq(expenses.accountId, id));
+  await db
+    .update(income)
+    .set({ accountId: null })
+    .where(eq(income.accountId, id));
+  await db.delete(accounts).where(eq(accounts.id, id));
+  return { success: true };
+};
+
+/** BALANCES **/
+
+// Combined balance + per-account balance in one pass:
+// balance = initialBalance + income - expenses + transfersIn - transfersOut
+export const getAccountsWithBalances = async () => {
+  const [allAccounts, allExpenses, allIncome, allTransfers] = await Promise.all(
+    [getAccounts(), getAllExpenses(), getAllIncome(), getAllTransfers()],
+  );
+
+  return allAccounts.map((account) => {
+    const spent = allExpenses
+      .filter((e) => e.accountId === account.id)
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    const earned = allIncome
+      .filter((i) => i.accountId === account.id)
+      .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+
+    const transferredIn = allTransfers
+      .filter((t) => t.toAccountId === account.id)
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const transferredOut = allTransfers
+      .filter((t) => t.fromAccountId === account.id)
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const balance =
+      Number(account.initialBalance || 0) +
+      earned -
+      spent +
+      transferredIn -
+      transferredOut;
+
+    return { ...account, spent, earned, balance };
+  });
+};
+
+export const getCombinedBalance = async () => {
+  const withBalances = await getAccountsWithBalances();
+  return withBalances.reduce((sum, a) => sum + a.balance, 0);
+};
+
+/** TRANSFERS **/
+
+export const getAllTransfers = async () => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      return JSON.parse(localStorage.getItem("transfers") || "[]");
+    }
+    return [];
+  }
+  return await db.select().from(transfers).orderBy(desc(transfers.id));
+};
+
+export const addTransfer = async ({
+  fromAccountId,
+  toAccountId,
+  amount,
+  date,
+  month,
+  note,
+}) => {
+  if (fromAccountId === toAccountId) {
+    throw new Error("Source and destination accounts must be different");
+  }
+  const numericAmount = Number(amount);
+  if (!numericAmount || numericAmount <= 0) {
+    throw new Error("Transfer amount must be greater than zero");
+  }
+
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("transfers") || "[]");
+      const newTransfer = {
+        id: Date.now(),
+        fromAccountId,
+        toAccountId,
+        amount: numericAmount,
+        date,
+        month,
+        note: note || "",
+        createdAt: new Date().toISOString(),
+      };
+      list.push(newTransfer);
+      localStorage.setItem("transfers", JSON.stringify(list));
+      return newTransfer;
+    }
+    throw new Error("Database not initialized");
+  }
+
+  const result = await db
+    .insert(transfers)
+    .values({
+      fromAccountId,
+      toAccountId,
+      amount: numericAmount,
+      date,
+      month,
+      note,
+    })
+    .returning();
+  return result[0];
 };

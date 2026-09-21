@@ -31,6 +31,7 @@ import {
   deleteExpense,
   getSubcategories,
   getFuelLogsByMonth,
+  getAccounts,
 } from "../../lib/db/queries";
 
 import { exportToPDF } from "../../lib/utils/pdfExporter";
@@ -145,6 +146,9 @@ export default function ExpensesScreen() {
 
   const [description, setDescription] = useState("");
 
+  const [accountList, setAccountList] = useState([]);
+  const [accountId, setAccountId] = useState(null);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -191,7 +195,10 @@ export default function ExpensesScreen() {
 
   const openModal = async () => {
     const cats = await getCategories();
+    const accts = await getAccounts();
     setCategoryList(cats || []);
+    setAccountList(accts || []);
+    if (accts.length > 0) setAccountId(accts[0].id);
     if (cats.length > 0) {
       setCategory(cats[0].name);
       const subs = await getSubcategories(cats[0].id);
@@ -264,6 +271,7 @@ export default function ExpensesScreen() {
         month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
         method,
         imageUri: imageUri || null, // <-- Saved to SQLite
+        accountId: accountId || null, // NEW
       });
 
       resetForm();
@@ -866,6 +874,34 @@ const handleExportExcel = async () => {
                     ))}
                   </View>
                 </ScrollView>
+
+                {accountList.length > 0 && (
+                  <View className="mb-4">
+                    <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Account
+                    </Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                    >
+                      <View className="flex-row gap-2">
+                        {accountList.map((acct) => (
+                          <TouchableOpacity
+                            key={acct.id}
+                            onPress={() => setAccountId(acct.id)}
+                            className={`px-4 py-2 rounded-full border ${accountId === acct.id ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"}`}
+                          >
+                            <Text
+                              className={`text-sm font-semibold ${accountId === acct.id ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                            >
+                              {acct.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
 
                 <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                   Description
