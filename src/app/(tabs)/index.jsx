@@ -12,6 +12,7 @@ import {
   Platform,
   Image,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 
 import { Ionicons } from "@expo/vector-icons";
 
@@ -48,6 +49,8 @@ import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplat
 
 import PrivacyText from "@/components/PrivacyText";
 import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
+import { parseTransactionText } from "@/lib/features/transactionParser";
+import { extractReceiptFields } from "@/lib/features/receiptOcr";
 
 
 const METHODS = ["Cash", "Card", "UPI", "Other"];
@@ -82,6 +85,12 @@ const MONTHS = [
 
 const YEARS = Array.from({ length: 101 }, (_, i) => 2010 + i);
 
+const formatExpenseDate = (value = new Date()) => {
+  const day = String(value.getDate()).padStart(2, "0");
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${value.getFullYear()}`;
+};
+
 export default function ExpensesScreen() {
   const { colorScheme } = useColorScheme();
 
@@ -100,6 +109,7 @@ export default function ExpensesScreen() {
   const [categoryList, setCategoryList] = useState([]);
 
   const [saving, setSaving] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   const [imageUri, setImageUri] = useState(null);
   const [previewImageUri, setPreviewImageUri] = useState(null);
@@ -137,6 +147,7 @@ export default function ExpensesScreen() {
   const [title, setTitle] = useState("");
 
   const [amount, setAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState(() => formatExpenseDate());
 
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState(""); // NEW
@@ -220,6 +231,7 @@ export default function ExpensesScreen() {
     setTitle("");
 
     setAmount("");
+    setExpenseDate(formatExpenseDate());
 
     setCategory("");
 
@@ -231,8 +243,27 @@ export default function ExpensesScreen() {
     setImageUri(null); // NEW
   };
 
-  const handleImageSelected = (uri) => {
+
+  const handleImageSelected = async (uri) => {
     setImageUri(uri);
+    setOcrLoading(true);
+    try {
+      const result = await extractReceiptFields(uri);
+      if (!result.success) return;
+
+      if (!title.trim() && result.data.title) setTitle(result.data.title);
+      if (!amount.trim() && result.data.amount) {
+        setAmount(String(result.data.amount));
+      }
+      if (result.data.date) setExpenseDate(result.data.date);
+      if (!description.trim() && result.data.rawText) {
+        setDescription(result.data.rawText);
+      }
+    } catch (error) {
+      console.error("[ExpensesScreen.handleImageSelected] OCR failed", error);
+    } finally {
+      setOcrLoading(false);
+    }
   };
 
   const handleImageRemoved = () => {
@@ -254,19 +285,12 @@ export default function ExpensesScreen() {
     try {
       setSaving(true);
 
-      // Storing date in DD/MM/YYYY format as requested!
-      const today = new Date();
-      const dd = String(today.getDate()).padStart(2, "0");
-      const mm = String(today.getMonth() + 1).padStart(2, "0");
-      const yyyy = today.getFullYear();
-      const formattedDate = `${dd}/${mm}/${yyyy}`;
-
       await addExpense({
         title: title.trim(),
         amount: parseFloat(amount),
         category: category || "Other",
         subcategory: subcategory || null, // NEW
-        date: formattedDate,
+        date: expenseDate || formatExpenseDate(),
         description: description.trim(),
         month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
         method,
@@ -360,6 +384,30 @@ export default function ExpensesScreen() {
     }
   };
 
+  const handleSmartPaste = async () => {
+    try {
+      const clipboardText = await Clipboard.getStringAsync();
+      const parsed = parseTransactionText(clipboardText);
+      if (!parsed.success) {
+        Alert.alert("Smart Paste", parsed.error);
+        return;
+      }
+
+      setTitle((current) => current || parsed.data.title);
+      setAmount((current) => current || String(parsed.data.amount));
+      setMethod((current) =>
+        current === "Cash" || current === "Other"
+          ? parsed.data.method
+          : current,
+      );
+      if (parsed.data.date) setExpenseDate(parsed.data.date);
+      setDescription((current) => current || parsed.data.description);
+    } catch (error) {
+      console.error("[ExpensesScreen.handleSmartPaste] failed", error);
+      Alert.alert("Smart Paste", "Could not read clipboard text");
+    }
+  };
+
 
   
 const handleExportExcel = async () => {
@@ -424,6 +472,7 @@ const handleExportExcel = async () => {
     } catch (error) {
       console.error("Failed to download sample file", error);
       Alert.alert("Failed", "Could not download sample file");
+      Alert.prompt()
     }
   };
 
@@ -768,6 +817,16 @@ const handleExportExcel = async () => {
                   Title *
                 </Text>
 
+                <TouchableOpacity
+                  onPress={handleSmartPaste}
+                  className="self-end flex-row items-center gap-1 mb-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30"
+                >
+                  <Ionicons name="clipboard-outline" size={16} color="#2563EB" />
+                  <Text className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                    Smart Paste
+                  </Text>
+                </TouchableOpacity>
+
                 <TextInput
                   value={title}
                   onChangeText={setTitle}
@@ -785,6 +844,18 @@ const handleExportExcel = async () => {
                   onChangeText={setAmount}
                   placeholder="0.00"
                   keyboardType="numeric"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
+                  placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
+                />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Date
+                </Text>
+
+                <TextInput
+                  value={expenseDate}
+                  onChangeText={setExpenseDate}
+                  placeholder="DD/MM/YYYY"
                   className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
                   placeholderTextColor={isDark ? "#6B7280" : "#9CA3AF"}
                 />
@@ -920,6 +991,11 @@ const handleExportExcel = async () => {
                 <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                   Image / Bill / Receipt
                 </Text>
+                {ocrLoading && (
+                  <Text className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+                    Reading receipt...
+                  </Text>
+                )}
                 <View>
                   <ReceiptPicker
                     imageUri={imageUri}
