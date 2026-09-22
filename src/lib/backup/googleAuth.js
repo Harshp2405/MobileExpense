@@ -15,13 +15,13 @@ const KEYS = {
 };
 
 export function getGoogleClientId() {
-  if (Platform.OS === "android") {
+  // if (Platform.OS === "android") {
     return process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
-  }
-  if (Platform.OS === "ios") {
-    return process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
-  }
-  return process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+  // }
+  // if (Platform.OS === "ios") {
+  //   return process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  // }
+  // return process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
 }
 
 export function getRedirectUri() {
