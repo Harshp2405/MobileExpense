@@ -17,7 +17,7 @@ export async function extractReceiptFields(imageUri) {
     if (!text) return { success: false, error: "No text found in receipt" };
 
     const amountMatch = text.match(
-      /(?:total|amount|net|grand total)[^\d]{0,20}([\d,]+(?:\.\d{1,2})?)/i,
+      /(?:total|amount|net|grand total|Net Amount|Net Total)[^\d]{0,20}([\d,]+(?:\.\d{1,2})?)/i,
     );
     const dateMatch = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
     const lines = text

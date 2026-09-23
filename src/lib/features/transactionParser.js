@@ -17,7 +17,7 @@ export function parseTransactionText(input) {
       : "Other";
 
   const titleMatch = text.match(
-    /(?:at|paid to|spent on)\s+([A-Za-z0-9 &.'-]{2,80})/i,
+    /(?:^|\n)\s*To\s+([^\r\n]+)|(?:at|paid to|spent on)\s+([A-Za-z0-9 &.'-]{2,80})/i,
   );
 
   const dateMatch = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/);
@@ -25,7 +25,7 @@ export function parseTransactionText(input) {
   return {
     success: true,
     data: {
-      title: titleMatch?.[1]?.trim() || "Imported transaction",
+      title: titleMatch?.[1]?.trim() || titleMatch?.[2]?.trim() || "Imported transaction",
       amount,
       method,
       date: dateMatch?.[1] || null,

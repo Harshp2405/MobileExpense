@@ -15,6 +15,13 @@ import { PrivacyProvider } from "../lib/privacy/usePrivacyMode";
 import { useBiometricAuth } from "../lib/auth/useBiometricAuth";
 import LockScreen from "../components/LockScreen";
 
+
+import * as Notifications from "expo-notifications";
+import {
+  configureExportNotifications,
+  scheduleNextExportReminder,
+} from "../lib/notifications/exportReminder";
+
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const { colorScheme } = useThemePersist();
@@ -55,6 +62,37 @@ export default function RootLayout() {
     });
 
     return () => unsubscribe();
+  }, [dbReady]);
+
+
+  useEffect(() => {
+    if (!dbReady || Platform.OS === "web") return;
+
+    let responseSubscription;
+
+    const initializeNotifications = async () => {
+      await configureExportNotifications();
+      await scheduleNextExportReminder();
+
+      responseSubscription =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          const action = response.notification.request.content.data?.action;
+          if (action !== "export-monthly-expenses") return;
+
+          scheduleNextExportReminder().catch((error) => {
+            console.error(
+              "[RootLayout.notifications] reschedule failed",
+              error,
+            );
+          });
+        });
+    };
+
+    initializeNotifications().catch((error) => {
+      console.error("[RootLayout.notifications] initialization failed", error);
+    });
+
+    return () => responseSubscription?.remove();
   }, [dbReady]);
 
   // DB not ready yet — block render

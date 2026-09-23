@@ -690,8 +690,8 @@ monthly-expense-{userId}-{yyyy-MM}
 
 |     | Feature Category   | High-Impact Feature                       | Technical Feasibility | Stack Requirements              |
 | :-- | :------------------ | :----------------------------------------- | :---------------------- | :--------------------------------- |
-|     | **Automation**     | Clipboard / SMS Smart Ingestion           | High                  | Regex / Clipboard API           |
-|     | **Automation**     | Receipt OCR Text Extraction               | Medium                | ML Kit / Vision API             |
+| ✅  | **Automation**     | Clipboard / SMS Smart Ingestion           | High                  | Regex / Clipboard API           |
+| ✅  | **Automation**     | Receipt OCR Text Extraction               | Medium                | ML Kit / Vision API             |
 |     | **UX / Speed**     | Home Screen Quick Actions                 | High                  | `expo-quick-actions`            |
 |     | **Budgeting**      | Dynamic "Daily Safe-to-Spend"             | High                  | SQLite query / state logic      |
 |     | **Budgeting**      | Category Budgets & Push Thresholds        | High                  | `expo-notifications` + SQLite   |

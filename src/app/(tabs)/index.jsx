@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ToastAndroid,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
@@ -50,8 +51,9 @@ import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplat
 import PrivacyText from "@/components/PrivacyText";
 import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
 import { parseTransactionText } from "@/lib/features/transactionParser";
-import { extractReceiptFields } from "@/lib/features/receiptOcr";
-
+import { toastMessage } from "@/lib/utils/helperFunctions";
+// import { extractReceiptFields } from "@/lib/features/receiptOcr";
+import * as Notifications from "expo-notifications";
 
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
@@ -109,7 +111,7 @@ export default function ExpensesScreen() {
   const [categoryList, setCategoryList] = useState([]);
 
   const [saving, setSaving] = useState(false);
-  const [ocrLoading, setOcrLoading] = useState(false);
+  // const [ocrLoading, setOcrLoading] = useState(false);
 
   const [imageUri, setImageUri] = useState(null);
   const [previewImageUri, setPreviewImageUri] = useState(null);
@@ -246,24 +248,24 @@ export default function ExpensesScreen() {
 
   const handleImageSelected = async (uri) => {
     setImageUri(uri);
-    setOcrLoading(true);
-    try {
-      const result = await extractReceiptFields(uri);
-      if (!result.success) return;
+    // setOcrLoading(true);
+    // try {
+    //   const result = await extractReceiptFields(uri);
+    //   if (!result.success) return;
 
-      if (!title.trim() && result.data.title) setTitle(result.data.title);
-      if (!amount.trim() && result.data.amount) {
-        setAmount(String(result.data.amount));
-      }
-      if (result.data.date) setExpenseDate(result.data.date);
-      if (!description.trim() && result.data.rawText) {
-        setDescription(result.data.rawText);
-      }
-    } catch (error) {
-      console.error("[ExpensesScreen.handleImageSelected] OCR failed", error);
-    } finally {
-      setOcrLoading(false);
-    }
+    //   if (!title.trim() && result.data.title) setTitle(result.data.title);
+    //   if (!amount.trim() && result.data.amount) {
+    //     setAmount(String(result.data.amount));
+    //   }
+    //   if (result.data.date) setExpenseDate(result.data.date);
+    //   if (!description.trim() && result.data.rawText) {
+    //     setDescription(result.data.rawText);
+    //   }
+    // } catch (error) {
+    //   console.error("[ExpensesScreen.handleImageSelected] OCR failed", error);
+    // } finally {
+    //   setOcrLoading(false);
+    // }
   };
 
   const handleImageRemoved = () => {
@@ -297,7 +299,7 @@ export default function ExpensesScreen() {
         imageUri: imageUri || null, // <-- Saved to SQLite
         accountId: accountId || null, // NEW
       });
-
+      toastMessage("Expense Added" , 1 , 1 , 20 , 20)
       resetForm();
       setModalVisible(false);
       await loadData();
@@ -991,11 +993,11 @@ const handleExportExcel = async () => {
                 <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
                   Image / Bill / Receipt
                 </Text>
-                {ocrLoading && (
+                {/* {ocrLoading && (
                   <Text className="text-xs text-blue-600 dark:text-blue-400 mb-2">
                     Reading receipt...
                   </Text>
-                )}
+                )} */}
                 <View>
                   <ReceiptPicker
                     imageUri={imageUri}
