@@ -100,6 +100,8 @@ export async function scheduleNextExportReminder(now = new Date()) {
       title: "Monthly Expense Export",
       body: "It is time to export this month's expenses.",
       sound: "default",
+      vibrate: true, 
+
       data: { action: ACTION },
       ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
