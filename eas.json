@@ -32,10 +32,16 @@
       "env": {
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "227893677011-qu991iusq4c4r53a922bpv21gq8bvse2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "227893677011-q29hi6131bnk98rpiho5bflskgbn20o0.apps.googleusercontent.com"
+      }
+    },
+    "playstore": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "227893677011-qu991iusq4c4r53a922bpv21gq8bvse2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "227893677011-q29hi6131bnk98rpiho5bflskgbn20o0.apps.googleusercontent.com"
       },
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+        "buildType": "app-bundle"
       }
     }
   },
