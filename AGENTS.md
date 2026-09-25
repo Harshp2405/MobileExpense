@@ -351,4 +351,6 @@ After every implementation, run through every item before declaring the task com
 **Code Quality**
 - [ ] No TODO, FIXME, or placeholder code shipped in production paths.
 - [ ] All public APIs, functions, and types have JSDoc / docstrings / rustdoc explaining *why*, not just *what*.
-- [ ] Every file produced is complete, runnable, and has its imports and dependencies declared.
+- [ ] Every file produced is complete, runnable, and has its imports and dependencies declared.
+
+
