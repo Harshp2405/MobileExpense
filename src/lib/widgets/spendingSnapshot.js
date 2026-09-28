@@ -89,16 +89,37 @@ export async function saveSpendingSnapshot(snapshot) {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
 }
 
+export function getDefaultSpendingSnapshot(now = new Date()) {
+  return {
+    monthLabel: `${MONTHS[now.getMonth()]} ${now.getFullYear()}`,
+    total: 0,
+    updatedAt: now.toISOString(),
+    slices: [],
+  };
+}
+
 export async function loadSpendingSnapshot() {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.slices)) return null;
-    return parsed;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.slices)) return parsed;
+    }
   } catch (error) {
     console.warn("[spendingSnapshot.load]", { event: "invalid_snapshot" });
-    return null;
+  }
+
+  // If not cached yet in AsyncStorage, compute directly from SQLite
+  try {
+    const [expenses, categories] = await Promise.all([
+      getExpensesByMonth(getCurrentMonthKey()),
+      getCategories(),
+    ]);
+    const fresh = buildSpendingSnapshot(expenses, categories);
+    await saveSpendingSnapshot(fresh).catch(() => {});
+    return fresh;
+  } catch (error) {
+    return getDefaultSpendingSnapshot();
   }
 }
 

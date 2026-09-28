@@ -1,8 +1,9 @@
+"use no memo";
 import React from "react";
 import { FlexWidget, SvgWidget, TextWidget } from "react-native-android-widget";
 
-const SIZE = 120;
-const STROKE = 18;
+const SIZE = 110;
+const STROKE = 16;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
@@ -35,6 +36,7 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
   const secondaryText = dark ? "#A1A1AA" : "#6B7280";
   const track = dark ? "#3F3F46" : "#E5E7EB";
   const slices = snapshot?.slices ?? [];
+  const monthLabel = snapshot?.monthLabel || "This Month";
 
   return (
     <FlexWidget
@@ -53,14 +55,15 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
           width: "match_parent",
           flexDirection: "row",
           justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <TextWidget
-          text="Category Breakdown"
+          text="Monthly Spending"
           style={{ fontSize: 14, fontWeight: "700", color: primaryText }}
         />
         <TextWidget
-          text={snapshot?.monthLabel ?? ""}
+          text={monthLabel}
           style={{ fontSize: 11, color: secondaryText }}
         />
       </FlexWidget>
@@ -68,8 +71,8 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
       {slices.length === 0 ? (
         <FlexWidget
           style={{
+            flex: 1,
             width: "match_parent",
-            height: "match_parent",
             justifyContent: "center",
             alignItems: "center",
           }}
@@ -82,6 +85,7 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
       ) : (
         <FlexWidget
           style={{
+            flex: 1,
             width: "match_parent",
             flexDirection: "row",
             alignItems: "center",
@@ -96,7 +100,7 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
               style={{ height: SIZE, width: SIZE }}
             />
             <TextWidget
-              text={formatTotal(snapshot.total)}
+              text={formatTotal(snapshot?.total)}
               style={{
                 fontSize: 13,
                 fontWeight: "700",
@@ -135,7 +139,7 @@ export function SpendingWidget({ snapshot, theme = "light" }) {
                   style={{ flex: 1, fontSize: 11, color: primaryText }}
                 />
                 <TextWidget
-                  text={`${slice.percentage.toFixed(0)}%`}
+                  text={`${(slice.percentage || 0).toFixed(0)}%`}
                   style={{
                     fontSize: 11,
                     fontWeight: "700",

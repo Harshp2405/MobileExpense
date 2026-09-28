@@ -97,7 +97,7 @@
               "minHeight": "180dp",
               "targetCellWidth": 4,
               "targetCellHeight": 3,
-              "previewImage": "./assets/images/icon.png",
+              "previewImage": "./assets/widget-preview/spending.png",
               "updatePeriodMillis": 3600000
             }
           ]
