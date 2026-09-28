@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -14,41 +14,66 @@ import { API_URL } from "../lib/sync/syncManager";
 import { useThemePersist } from "../lib/utils/useThemePersist";
 import BackupScreen from "../components/BackupScreen";
 
+async function fetchApiHealth(signal) {
+  const startTime = Date.now();
+  const response = await fetch(`${API_URL}/budget/delta`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    signal,
+  });
+
+  return {
+    status: response.ok ? "online" : "offline",
+    responseTime: response.ok ? Date.now() - startTime : null,
+  };
+}
+
 export default function AboutScreen() {
-  const [apiStatus, setApiStatus] = useState("unknown"); // 'unknown', 'loading', 'online', 'offline'
+  const [apiStatus, setApiStatus] = useState("loading");
   const [responseTime, setResponseTime] = useState(null);
+  const healthRequest = useRef(null);
   // Inside AboutScreen
   const { colorScheme } = useThemePersist();
   const isDark = colorScheme === "dark";
 
-  const checkApiHealth = async () => {
-    try {
-      setApiStatus("loading");
-      const startTime = Date.now();
+  const checkApiHealth = useCallback(() => {
+    if (healthRequest.current) return;
+    const controller = new AbortController();
+    healthRequest.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const res = await fetch(`${API_URL}/budget/delta`, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const endTime = Date.now();
-      if (res.ok) {
-        setApiStatus("online");
-        setResponseTime(endTime - startTime);
-      } else {
+    fetchApiHealth(controller.signal)
+      .then((result) => {
+        if (healthRequest.current !== controller) return;
+        setApiStatus(result.status);
+        setResponseTime(result.responseTime);
+      })
+      .catch(() => {
+        if (healthRequest.current !== controller) return;
+        console.warn("[Diagnostics]", { event: "health_check_failed" });
         setApiStatus("offline");
         setResponseTime(null);
-      }
-    } catch (e) {
-      console.warn("[Diagnostics] Health check error:", e);
-      setApiStatus("offline");
-      setResponseTime(null);
-    }
-  };
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+        if (healthRequest.current === controller) healthRequest.current = null;
+      });
+  }, []);
 
   useEffect(() => {
     checkApiHealth();
-  }, []);
+    return () => {
+      const controller = healthRequest.current;
+      healthRequest.current = null;
+      controller?.abort();
+    };
+  }, [checkApiHealth]);
+
+  const handleRefresh = useCallback(() => {
+    if (healthRequest.current) return;
+    setApiStatus("loading");
+    checkApiHealth();
+  }, [checkApiHealth]);
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -140,7 +165,7 @@ export default function AboutScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              onPress={checkApiHealth}
+              onPress={handleRefresh}
               disabled={apiStatus === "loading"}
               className="bg-gray-100 px-3.5 py-2 rounded-xl"
             >

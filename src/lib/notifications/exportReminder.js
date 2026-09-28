@@ -45,6 +45,8 @@ export async function configureExportNotifications() {
       name: "Monthly expense export",
       importance: Notifications.AndroidImportance.DEFAULT,
       sound: "default",
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 250, 250],
     });
   }
 
@@ -53,7 +55,7 @@ export async function configureExportNotifications() {
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
     }),
   });
 }
@@ -100,14 +102,14 @@ export async function scheduleNextExportReminder(now = new Date()) {
       title: "Monthly Expense Export",
       body: "It is time to export this month's expenses.",
       sound: "default",
-      vibrate: true, 
+      vibrate: [0, 250, 250, 250],
 
       data: { action: ACTION },
-      ...(Platform.OS === "android" ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: scheduledFor,
+      channelId: CHANNEL_ID,
     },
   });
 

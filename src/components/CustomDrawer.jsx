@@ -57,29 +57,52 @@ export default function CustomDrawerContent(props) {
   const monthKey = `${currentYear}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 
   const loadFinancialStats = useCallback(async () => {
-    try {
-      // 1. Fetch budget
-      const budgetData = await getBudgetByMonth(monthKey);
-      setBudgetLimit(budgetData ? budgetData.amount : 0);
-
-      // 2. Fetch expenses and sum amounts
-      const expensesList = await getExpensesByMonth(monthKey);
-      const spent = (expensesList || []).reduce((sum, item) => sum + item.amount, 0);
-      setTotalSpent(spent);
-    } catch (e) {
-      console.warn("Failed to fetch drawer budget statistics:", e);
+    const [budgetData, expensesList] = await Promise.all([
+      getBudgetByMonth(monthKey),
+      getExpensesByMonth(monthKey),
+    ]);
+    if (!Array.isArray(expensesList)) {
+      throw new Error("Invalid expense list");
     }
+    const budget = Number(budgetData?.amount ?? 0);
+    const spent = expensesList.reduce((total, item) => total + Number(item.amount), 0);
+    if (!Number.isFinite(budget) || !Number.isFinite(spent)) {
+      throw new Error("Invalid financial totals");
+    }
+    return { budget, spent };
   }, [monthKey]);
 
   // Run initial fetch and set periodic refresh to remain perfectly up to date
   useEffect(() => {
-    loadFinancialStats();
+    let active = true;
+    let refreshing = false;
 
-    const interval = setInterval(() => {
-      loadFinancialStats();
-    }, 3000);
+    const refresh = () => {
+      if (!active || refreshing) return;
+      refreshing = true;
+      loadFinancialStats()
+        .then(({ budget, spent }) => {
+          if (!active) return;
+          setBudgetLimit(budget);
+          setTotalSpent(spent);
+        })
+        .catch(() => {
+          if (active) {
+            console.warn("[CustomDrawer]", { event: "financial_stats_failed" });
+          }
+        })
+        .finally(() => {
+          refreshing = false;
+        });
+    };
 
-    return () => clearInterval(interval);
+    refresh();
+    const interval = setInterval(refresh, 3000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, [loadFinancialStats]);
 
   const handleManualSync = async () => {

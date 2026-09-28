@@ -84,7 +84,26 @@
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "SpendingBreakdown",
+              "label": "Monthly Spending",
+              "description": "Category breakdown for the current month",
+              "minWidth": "250dp",
+              "minHeight": "180dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 3,
+              "previewImage": "./assets/images/icon.png",
+              "updatePeriodMillis": 3600000
+            }
+          ]
+        }
+      ],
+
     ],
     "experiments": {
       "typedRoutes": true,

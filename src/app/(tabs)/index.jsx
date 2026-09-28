@@ -55,6 +55,7 @@ import { toastMessage } from "@/lib/utils/helperFunctions";
 // import { extractReceiptFields } from "@/lib/features/receiptOcr";
 import * as Notifications from "expo-notifications";
 
+import { refreshSpendingWidget } from "@/lib/widgets/spendingSnapshot";
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
 const MONTHS = [
@@ -193,6 +194,7 @@ export default function ExpensesScreen() {
       const currentHistory = history.find((h) => h.month === monthKey);
 
       setTotalSpent(currentHistory ? currentHistory.total : 0);
+      refreshSpendingWidget();
     } catch (error) {
       console.error("Failed to load expenses", error);
     } finally {

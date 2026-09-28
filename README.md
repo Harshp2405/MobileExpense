@@ -65,3 +65,4 @@ eas build:configure
 eas init --id {if have id then else create by expo}
 
 
+- "main": "expo-router/entry",

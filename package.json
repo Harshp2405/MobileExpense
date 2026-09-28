@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo/log-box": "^57.0.4",
+    "@expo/ui": "~57.0.20",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -54,12 +55,14 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
+    "expo-task-manager": "~57.0.20",
     "expo-web-browser": "~57.0.3",
     "nativewind": "^4.2.4",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
+    "react-native-android-widget": "^0.22.1",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-gifted-charts": "^1.4.77",
     "react-native-reanimated": "4.5.1",

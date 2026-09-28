@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { PieChart, BarChart } from "react-native-gifted-charts";
 import { getExpensesByMonth, getCategories } from "../../lib/db/queries";
 import { useColorScheme } from "nativewind";
+import { refreshSpendingWidget } from "@/lib/widgets/spendingSnapshot";
 
 const screenWidth = Dimensions.Dimensions?.get
 	? Dimensions.Dimensions.get("window").width
@@ -82,6 +83,7 @@ export default function AnalyticsScreen() {
 
       const catData = await getCategories();
       setCategories(catData || []);
+      refreshSpendingWidget();
     } catch (error) {
       console.error("Failed to load analytics data", error);
     } finally {

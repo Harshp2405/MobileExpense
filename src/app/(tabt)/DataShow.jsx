@@ -17,6 +17,19 @@ import EmptyState from "../../components/analytics/EmptyState";
 
 const TYPES = ["all", "expense", "income"];
 
+const Chip = ({ label, active, onPress }) => (
+  <TouchableOpacity
+    onPress={onPress}
+    className={`px-3 py-1.5 rounded-full border ${active ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700"}`}
+  >
+    <Text
+      className={`text-[11px] font-bold ${active ? "text-white" : "text-gray-600 dark:text-gray-300"}`}
+    >
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
 export default function TransactionsScreen() {
   const a = useAnalyticsData();
   const [type, setType] = useState("all");
@@ -77,19 +90,6 @@ export default function TransactionsScreen() {
       </SafeAreaView>
     );
   }
-
-  const Chip = ({ label, active, onPress }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      className={`px-3 py-1.5 rounded-full border ${active ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700"}`}
-    >
-      <Text
-        className={`text-[11px] font-bold ${active ? "text-white" : "text-gray-600 dark:text-gray-300"}`}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900">
