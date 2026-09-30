@@ -35,6 +35,8 @@ export async function takePhoto() {
       allowsMultipleSelection: true,
       exif: false,
       selectionLimit: 3,
+      legacy:true,
+      shape:"rectangle",
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -72,6 +74,8 @@ export async function pickImageFromGallery() {
       orderedSelection: true,
       selectionLimit: 3,
       shouldDownloadFromNetwork: true,
+      legacy: true,
+      shape: "rectangle",
     });
 
     if (result.canceled || !result.assets || result.assets.length === 0) {
