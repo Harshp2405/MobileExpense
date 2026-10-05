@@ -55,6 +55,8 @@ import { toastMessage } from "@/lib/utils/helperFunctions";
 // import { extractReceiptFields } from "@/lib/features/receiptOcr";
 import * as Notifications from "expo-notifications";
 
+import { ExportCancelledError } from "@/lib/utils/publicStorage";
+
 import { refreshSpendingWidget } from "@/lib/widgets/spendingSnapshot";
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
@@ -119,6 +121,8 @@ export default function ExpensesScreen() {
 
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipText, setTooltipText] = useState("");
+
+  const exportingRef = useRef(false);
 
   const showActionTooltip = (text) => {
     setTooltipText(text);
@@ -348,6 +352,8 @@ export default function ExpensesScreen() {
   // };
 
   const handleExport = async () => {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
     try {
       const fuelLogs = await getFuelLogsByMonth(monthKey);
 
@@ -366,7 +372,7 @@ export default function ExpensesScreen() {
 
       const combinedTotal = Number(totalSpent || 0) + fuelTotal;
 
-      const savedPath = await exportToPDF({
+      const saved = await exportToPDF({
         expenses,
         fuelLogs,
         monthName: MONTHS[selectedMonth],
@@ -376,15 +382,19 @@ export default function ExpensesScreen() {
         combinedTotal,
       });
 
-      const filename = savedPath.split("/").pop();
-
       Alert.alert(
-        "Download Complete",
-        `Saved to local storage as:\n\n${filename}`,
+        "PDF Saved",
+        `Saved to ${saved.location} as:\n\n${saved.fileName}`,
       );
     } catch (error) {
+      if (error instanceof ExportCancelledError) {
+        toastMessage("Export cancelled");
+        return;
+      }
       console.error("Failed to export expense and fuel report", error);
       Alert.alert("Error", "Failed to export PDF report.");
+    } finally {
+      exportingRef.current = false;
     }
   };
 
@@ -415,6 +425,8 @@ export default function ExpensesScreen() {
 
   
 const handleExportExcel = async () => {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
     try {
       if (expenses.length === 0) {
         Alert.alert(
@@ -424,21 +436,25 @@ const handleExportExcel = async () => {
         return;
       }
 
-      const savedPath = await exportExpensesToExcel({
+      const saved = await exportExpensesToExcel({
         expenses,
         monthName: MONTHS[selectedMonth],
         year: selectedYear,
       });
 
-      const filename = savedPath.split("/").pop();
-
       Alert.alert(
-        "Excel Export Complete",
-        `Saved to local storage as:\n\n${filename}`,
+        "Excel Saved",
+        `Saved to ${saved.location} as:\n\n${saved.fileName}`,
       );
     } catch (error) {
+      if (error instanceof ExportCancelledError) {
+        toastMessage("Export cancelled");
+        return;
+      }
       console.error("Failed to export Excel report", error);
       Alert.alert("Error", "Failed to export Excel report.");
+    } finally {
+      exportingRef.current = false;
     }
   };
 
@@ -689,6 +705,7 @@ const handleExportExcel = async () => {
                       </View>
                     )}
                   </View>
+
                 </View>
               </View>
             </View>

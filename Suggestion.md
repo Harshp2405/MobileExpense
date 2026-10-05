@@ -689,7 +689,7 @@ monthly-expense-{userId}-{yyyy-MM}
 ### Summary Matrix
 
 |     | Feature Category   | High-Impact Feature                       | Technical Feasibility | Stack Requirements              |
-| :-- | :------------------ | :----------------------------------------- | :---------------------- | :--------------------------------- |
+| :-- | :------------------ | :----------------------------------------| :---------------------| :-------------------------------|
 | ✅  | **Automation**     | Clipboard / SMS Smart Ingestion           | High                  | Regex / Clipboard API           |
 | ✅  | **Automation**     | Receipt OCR Text Extraction               | Medium                | ML Kit / Vision API             |
 |     | **UX / Speed**     | Home Screen Quick Actions                 | High                  | `expo-quick-actions`            |
@@ -705,7 +705,7 @@ monthly-expense-{userId}-{yyyy-MM}
 |     | **Peer / Travel**  | Trip Mode (#Tag Isolated Budgets)         | High                  | Tag column / filter view        |
 |     | **Savings**        | Target Savings Jars & Sinking Funds       | High                  | Dedicated SQLite table          |
 |     | **Tax & Search**   | Multi-Predicate Search & Tax Tagging      | High                  | SQL parameterized filters       |
-
+| ✅  | **Chart Widget**   | Show Widget Chart ofn Monthly Expense     | Medium                | `react-native-android-widget`   |
 ---
 
 ## 1. Frictionless Data Ingestion & Automation

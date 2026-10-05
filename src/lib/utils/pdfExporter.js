@@ -1,6 +1,7 @@
 import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
+import { saveExportFile, MIME_TYPES } from "./publicStorage";
+
 
 export const exportToPDF = async ({
   expenses = [],
@@ -418,33 +419,50 @@ export const exportToPDF = async ({
     </html>
   `;
 
+  // try {
+  //   // 1. Generate the raw PDF file
+  //   const { uri: tempUri } = await Print.printToFileAsync({
+  //     html: htmlContent,
+  //   });
+
+  //   // 2. Format a pristine filename
+  //   const cleanFilename =
+  //     `Expense_and_Fuel_Report_${monthName}_${year}.pdf`.replace(/\s+/g, "_");
+  //   const targetUri = `${FileSystem.documentDirectory}${cleanFilename}`;
+
+  //   // 3. Move the file from temporary cache to a pristine document path
+  //   await FileSystem.copyAsync({
+  //     from: tempUri,
+  //     to: targetUri,
+  //   });
+
+  //   // 4. Trigger Native Save & Sharing popup with custom filename
+  //   await Sharing.shareAsync(targetUri, {
+  //     mimeType: "application/pdf",
+  //     dialogTitle: `Download Expense and Fuel Report - ${monthName} ${year}`,
+  //     UTI: "com.adobe.pdf",
+  //   });
+
+  //   return targetUri;
+  // } catch (error) {
+  //   console.error("PDF generation/sharing failed", error);
+  //   throw error;
+  // }
+
+    const { uri: tempUri } = await Print.printToFileAsync({ html: htmlContent });
+
   try {
-    // 1. Generate the raw PDF file
-    const { uri: tempUri } = await Print.printToFileAsync({
-      html: htmlContent,
+    const fileName = `Expense_and_Fuel_Report_${monthName}_${year}.pdf`;
+    const base64 = await FileSystem.readAsStringAsync(tempUri, {
+      encoding: FileSystem.EncodingType.Base64,
     });
 
-    // 2. Format a pristine filename
-    const cleanFilename =
-      `Expense_and_Fuel_Report_${monthName}_${year}.pdf`.replace(/\s+/g, "_");
-    const targetUri = `${FileSystem.documentDirectory}${cleanFilename}`;
-
-    // 3. Move the file from temporary cache to a pristine document path
-    await FileSystem.copyAsync({
-      from: tempUri,
-      to: targetUri,
+    return await saveExportFile({
+      fileName,
+      base64,
+      mimeType: MIME_TYPES.pdf,
     });
-
-    // 4. Trigger Native Save & Sharing popup with custom filename
-    await Sharing.shareAsync(targetUri, {
-      mimeType: "application/pdf",
-      dialogTitle: `Download Expense and Fuel Report - ${monthName} ${year}`,
-      UTI: "com.adobe.pdf",
-    });
-
-    return targetUri;
-  } catch (error) {
-    console.error("PDF generation/sharing failed", error);
-    throw error;
+  } finally {
+    await FileSystem.deleteAsync(tempUri, { idempotent: true });
   }
 };

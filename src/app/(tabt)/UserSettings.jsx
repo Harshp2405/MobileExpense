@@ -1,9 +1,10 @@
-import { View, Text, TouchableOpacity, Switch, Platform } from "react-native";
+import { View, Text, TouchableOpacity, Switch, Platform, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useThemePersist } from "../../lib/utils/useThemePersist";
 import { useBiometricAuth } from "../../lib/auth/useBiometricAuth";
 import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
+import { resetExportFolder } from "../../lib/utils/publicStorage";
 
 const THEME_OPTIONS = [
   { key: "light", label: "Light", icon: "sunny-outline" },
@@ -31,6 +32,40 @@ export default function UserSettings() {
         Customize your app experience
       </Text>
 
+      {/* Export Folder */}
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            await resetExportFolder();
+            Alert.alert(
+              "Export folder",
+              "You will be asked to choose a folder on the next export.",
+            );
+          } catch (error) {
+            console.warn("[UserSettings] reset export folder failed", error);
+            Alert.alert("Export folder", "Could not reset the export folder.");
+          }
+        }}
+        className="bg-white dark:bg-zinc-800 rounded-2xl p-5 border border-gray-100 dark:border-zinc-700 shadow-sm mb-5 flex-row items-center gap-3"
+      >
+        <View className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/30 items-center justify-center">
+          <Ionicons name="folder-open-outline" size={20} color="#10B981" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-sm font-bold text-gray-900 dark:text-gray-100">
+            Change export folder
+          </Text>
+          <Text className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+            Pick a new location for ExpenseManagement exports
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={isDark ? "#6B7280" : "#9CA3AF"}
+        />
+      </TouchableOpacity>
+
       {/* Appearance */}
       <View className="bg-white dark:bg-zinc-800 rounded-2xl p-5 border border-gray-100 dark:border-zinc-700 shadow-sm mb-5">
         <Text className="text-base font-bold text-gray-900 dark:text-gray-100 mb-1">
@@ -47,10 +82,11 @@ export default function UserSettings() {
               <TouchableOpacity
                 key={opt.key}
                 onPress={() => setTheme(opt.key)}
-                className={`flex-1 py-4 rounded-xl items-center border ${active
-                  ? "bg-blue-600 border-blue-600"
-                  : "bg-gray-50 dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"
-                  }`}
+                className={`flex-1 py-4 rounded-xl items-center border ${
+                  active
+                    ? "bg-blue-600 border-blue-600"
+                    : "bg-gray-50 dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"
+                }`}
               >
                 <Ionicons
                   name={opt.icon}
@@ -58,8 +94,9 @@ export default function UserSettings() {
                   color={active ? "#FFFFFF" : isDark ? "#D1D5DB" : "#4B5563"}
                 />
                 <Text
-                  className={`text-xs font-bold mt-2 ${active ? "text-white" : "text-gray-700 dark:text-gray-300"
-                    }`}
+                  className={`text-xs font-bold mt-2 ${
+                    active ? "text-white" : "text-gray-700 dark:text-gray-300"
+                  }`}
                 >
                   {opt.label}
                 </Text>
@@ -115,7 +152,8 @@ export default function UserSettings() {
         {!biometricAvailable && Platform.OS !== "web" && (
           <View className="mt-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
             <Text className="text-xs text-amber-700 dark:text-amber-300">
-              No biometric or PIN enrolled. Go to device Settings → Security to set one up.
+              No biometric or PIN enrolled. Go to device Settings → Security to
+              set one up.
             </Text>
           </View>
         )}
@@ -162,7 +200,8 @@ export default function UserSettings() {
         {isPrivate && (
           <View className="mt-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl p-3">
             <Text className="text-xs text-purple-700 dark:text-purple-300">
-              Stealth mode is ON. All balances appear as ₹ •••••• across the app.
+              Stealth mode is ON. All balances appear as ₹ •••••• across the
+              app.
             </Text>
           </View>
         )}
