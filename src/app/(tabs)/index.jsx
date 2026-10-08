@@ -516,7 +516,7 @@ const handleExportExcel = async () => {
 
           onPress: async () => {
             await deleteExpense(id);
-
+            toastMessage("Expense Deleted" , 1,1,20,20)
             await loadData();
           },
         },
