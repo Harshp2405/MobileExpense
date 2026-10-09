@@ -492,7 +492,6 @@ const handleExportExcel = async () => {
     } catch (error) {
       console.error("Failed to download sample file", error);
       Alert.alert("Failed", "Could not download sample file");
-      Alert.prompt()
     }
   };
 

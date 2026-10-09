@@ -21,7 +21,7 @@ import {
   getSubcategories,
   addSubcategory,
   deleteSubcategory,
-} from "../../lib/db/queries";
+} from "../lib/db/queries";
 
 const COLORS = [
   "#EF4444",

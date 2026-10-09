@@ -30,7 +30,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="categories"
         options={{
           title: "Categories",
@@ -38,7 +38,7 @@ export default function TabLayout() {
             <Ionicons name="grid-outline" size={24} color={color} />
           ),
         }}
-      />
+      /> */}
       <Tabs.Screen
         name="budgets"
         options={{

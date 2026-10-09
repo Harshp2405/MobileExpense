@@ -36,6 +36,12 @@ const MENU_ITEMS = [
     activeIcon: "stats-chart-outline",
     route: "/(tabt)",
   },
+  {
+    name: "Categories",
+    icon: "grid-outline",
+    activeIcon: "grid",
+    route: "/categories",
+  },
 ];
 
 export default function CustomDrawerContent(props) {

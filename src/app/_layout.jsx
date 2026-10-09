@@ -162,6 +162,13 @@ export default function RootLayout() {
             drawerItemStyle: { display: "none" },
           }}
         />
+        <Drawer.Screen
+          name="categories"
+          options={{
+            drawerLabel: "Categories",
+            title: "Categories",
+          }}
+        />
       </Drawer>
     </PrivacyProvider>
   );

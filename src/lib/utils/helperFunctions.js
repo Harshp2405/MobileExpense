@@ -19,17 +19,6 @@ export const convertToSectionList = (array, groupByKey) => {
   );
 };
 
-const durationMap = {
-  1: ToastAndroid.SHORT,
-  2: ToastAndroid.LONG,
-};
-
-const gravityMap = {
-  1: ToastAndroid.BOTTOM,
-  2: ToastAndroid.CENTER,
-  3: ToastAndroid.TOP,
-};
-
 export const toastMessage = (
   message,
   duration = 1,
@@ -38,6 +27,16 @@ export const toastMessage = (
   yOffset = 0,
 ) => {
   if (Platform.OS !== "android") return;
+
+  const durationMap = {
+    1: ToastAndroid.SHORT,
+    2: ToastAndroid.LONG,
+  };
+  const gravityMap = {
+    1: ToastAndroid.BOTTOM,
+    2: ToastAndroid.CENTER,
+    3: ToastAndroid.TOP,
+  };
 
   ToastAndroid.showWithGravityAndOffset(
     String(message),
