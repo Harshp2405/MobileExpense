@@ -9,7 +9,7 @@ import {
   accounts,
   transfers,
 } from "./schema";
-import { eq, desc, sum, asc, sql , and } from "drizzle-orm";
+import { eq, desc, sum, asc, sql , and  , count} from "drizzle-orm";
 import { Platform } from "react-native";
 import { deleteLocalImage } from "../utils/imageManager";
 
@@ -1164,4 +1164,79 @@ export const addTransfer = async ({
     })
     .returning();
   return result[0];
+};
+
+/**
+ * Updates an existing expense by ID.
+ * Only updates fields that are explicitly provided — does NOT null out omitted fields.
+ * Mirrors the addExpense signature for consistency.
+ *
+ * @param {number} id — The expense ID to update
+ * @param {Object} fields — The fields to update (same shape as addExpense input)
+ * @returns {Object} The updated expense row
+ * @throws {Error} If the DB is unavailable or the update fails
+ */
+export const updateExpense = async (id, {
+  title,
+  amount,
+  category,
+  subcategory,
+  date,
+  description,
+  month,
+  method,
+  imageUri,
+  accountId,
+}) => {
+  // ── Web fallback (localStorage) ──
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("expenses") || "[]");
+      const idx = list.findIndex((e) => e.id === id);
+      if (idx === -1) throw new Error("Expense not found");
+      list[idx] = {
+        ...list[idx],
+        title,
+        amount: Number(amount),
+        category: category || "General",
+        subcategory: subcategory || null,
+        date: date || list[idx].date,
+        description: description || "",
+        method,
+        imageUri: imageUri || null,
+        accountId: accountId || null,
+      };
+      localStorage.setItem("expenses", JSON.stringify(list));
+      return list[idx];
+    }
+    throw new Error("Database not initialized");
+  }
+
+  // ── SQLite via Drizzle ──
+  try {
+    const result = await db
+      .update(expenses)
+      .set({
+        title,
+        amount,
+        category,
+        subcategory: subcategory || null,
+        date,
+        description,
+        method,
+        imageUri: imageUri || null,
+        accountId: accountId || null,
+        syncStatus: "pending", // mark dirty for next sync cycle
+      })
+      .where(eq(expenses.id, id))
+      .returning();
+
+    if (!result || result.length === 0) {
+      throw new Error("Expense not found");
+    }
+    return result[0];
+  } catch (err) {
+    console.error("[queries.updateExpense] Failed:", err);
+    throw new Error("Failed to update expense");
+  }
 };

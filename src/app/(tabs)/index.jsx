@@ -34,6 +34,7 @@ import {
   getSubcategories,
   getFuelLogsByMonth,
   getAccounts,
+  updateExpense,
 } from "../../lib/db/queries";
 
 import { exportToPDF } from "../../lib/utils/pdfExporter";
@@ -114,6 +115,9 @@ export default function ExpensesScreen() {
   const [categoryList, setCategoryList] = useState([]);
 
   const [saving, setSaving] = useState(false);
+  // null = "Add" mode, number = "Edit" mode (holds the expense ID being edited)
+  const [editingExpenseId, setEditingExpenseId] = useState(null);
+
   // const [ocrLoading, setOcrLoading] = useState(false);
 
   const [imageUri, setImageUri] = useState(null);
@@ -249,6 +253,8 @@ export default function ExpensesScreen() {
     setSubcategory(""); // NEW
     setSubcategoryList([]); // NEW
     setImageUri(null); // NEW
+
+    setEditingExpenseId(null); //set edit mode clear
   };
 
 
@@ -284,38 +290,95 @@ export default function ExpensesScreen() {
     }
   };
 
+  // const handleSave = async () => {
+  //   if (!title.trim() || !amount.trim()) {
+  //     Alert.alert("Error", "Title and Amount are required");
+  //     return;
+  //   }
+
+  //   try {
+  //     setSaving(true);
+
+  //     await addExpense({
+  //       title: title.trim(),
+  //       amount: parseFloat(amount),
+  //       category: category || "Other",
+  //       subcategory: subcategory || null, // NEW
+  //       date: expenseDate || formatExpenseDate(),
+  //       description: description.trim(),
+  //       month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
+  //       method,
+  //       imageUri: imageUri || null, // <-- Saved to SQLite
+  //       accountId: accountId || null, // NEW
+  //     });
+  //     toastMessage("Expense Added" , 1 , 1 , 20 , 20)
+  //     resetForm();
+  //     setModalVisible(false);
+  //     await loadData();
+
+  //   } catch {
+  //     Alert.alert("Error", "Failed to add expense");
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
+
   const handleSave = async () => {
     if (!title.trim() || !amount.trim()) {
       Alert.alert("Error", "Title and Amount are required");
+      return;
+    }
+    if (saving) return; // debounce: prevent double-submit
+
+    const parsedAmount = parseFloat((amount ?? "").trim()) || 0;
+    if (parsedAmount <= 0) {
+      Alert.alert("Error", "Amount must be greater than zero");
       return;
     }
 
     try {
       setSaving(true);
 
-      await addExpense({
+      const expenseData = {
         title: title.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         category: category || "Other",
-        subcategory: subcategory || null, // NEW
+        subcategory: subcategory || null,
         date: expenseDate || formatExpenseDate(),
         description: description.trim(),
-        month: monthKey, // stores yyyy-mm to match MongoDB and Web frontend
+        month: monthKey,
         method,
-        imageUri: imageUri || null, // <-- Saved to SQLite
-        accountId: accountId || null, // NEW
-      });
-      toastMessage("Expense Added" , 1 , 1 , 20 , 20)
+        imageUri: imageUri || null,
+        accountId: accountId || null,
+      };
+
+      if (editingExpenseId != null) {
+        // ── EDIT MODE ──
+        await updateExpense(editingExpenseId, expenseData);
+        toastMessage("Expense Updated", 1, 1, 20, 20);
+      } else {
+        // ── ADD MODE ──
+        await addExpense(expenseData);
+        toastMessage("Expense Added", 1, 1, 20, 20);
+      }
+
       resetForm();
+      setEditingExpenseId(null); // always clear edit state
       setModalVisible(false);
       await loadData();
-
-    } catch {
-      Alert.alert("Error", "Failed to add expense");
+    } catch (err) {
+      console.error("[ExpensesScreen.handleSave] Failed:", err);
+      Alert.alert(
+        "Error",
+        editingExpenseId != null
+          ? "Failed to update expense"
+          : "Failed to add expense"
+      );
     } finally {
       setSaving(false);
     }
   };
+
 
   // const handleExport = async () => {
   //   if (expenses.length === 0) {
@@ -523,6 +586,53 @@ const handleExportExcel = async () => {
     }
   };
 
+  /**
+ * Opens the add/edit modal pre-populated with the expense's data for editing.
+ * Loads fresh category/subcategory/account lists before showing the modal.
+ */
+  const handleEdit = async (item) => {
+    if (saving) return; // debounce: prevent double-open
+
+    try {
+      // Close the swipeable drawer first
+      swipeableRefs.current[item.id]?.close();
+
+      // Load fresh picklist data
+      const cats = await getCategories();
+      const accts = await getAccounts();
+      setCategoryList(cats || []);
+      setAccountList(accts || []);
+
+      // Pre-fill form fields from the expense being edited
+      setTitle(item.title ?? "");
+      setAmount(String(item.amount ?? ""));
+      setExpenseDate(item.date ?? formatExpenseDate());
+      setCategory(item.category ?? "");
+      setMethod(item.method ?? "Cash");
+      setDescription(item.description ?? "");
+      setImageUri(item.imageUri ?? null);
+      setAccountId(item.accountId ?? null);
+
+      // Load subcategories for the expense's category
+      const matchedCat = (cats || []).find((c) => c.name === item.category);
+      if (matchedCat) {
+        const subs = await getSubcategories(matchedCat.id);
+        setSubcategoryList(subs || []);
+      } else {
+        setSubcategoryList([]);
+      }
+      setSubcategory(item.subcategory ?? "");
+
+      // Set edit mode and open modal
+      setEditingExpenseId(item.id);
+      setModalVisible(true);
+    } catch (err) {
+      console.error("[ExpensesScreen.handleEdit] Failed to open edit modal:", err);
+      Alert.alert("Error", "Could not load expense for editing.");
+    }
+  };
+
+
   const renderRightActions = (id) => (
     <TouchableOpacity
       onPress={() => handleDelete(id)}
@@ -533,6 +643,17 @@ const handleExportExcel = async () => {
       <Text className="text-white text-xs font-bold mt-1">Delete</Text>
     </TouchableOpacity>
   );
+
+  const renderLeftActions = (item) => (
+    <TouchableOpacity
+      onPress={() => handleEdit(item)}
+      className="bg-blue-500 justify-center items-center w-20 rounded-2xl mb-4"
+    >
+      <Ionicons name="create-outline" size={22} color="white" />
+      <Text className="text-white text-xs font-bold mt-1">Edit</Text>
+    </TouchableOpacity>
+  );
+
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900">
@@ -729,6 +850,7 @@ const handleExportExcel = async () => {
               ref={(ref) => {
                 swipeableRefs.current[item.id] = ref;
               }}
+              renderLeftActions={()=> renderLeftActions(item)}
             >
               <TouchableOpacity
                 //onLongPress={() => handleDelete(item.id)}
@@ -814,7 +936,7 @@ const handleExportExcel = async () => {
             <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6 max-h-[85%]">
               <View className="flex-row justify-between items-center mb-6">
                 <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Add Expense
+                  {editingExpenseId != null ? "Edit Expense" : "Add Expense"}
                 </Text>
 
                 <TouchableOpacity
@@ -1031,7 +1153,7 @@ const handleExportExcel = async () => {
                   className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}
                 >
                   <Text className="text-white font-bold text-base">
-                    {saving ? "Saving..." : "Add Expense"}
+                    {saving ? (editingExpenseId != null ? "Updating..." : "Saving...") : (editingExpenseId != null ? "Update" : "Save")}
                   </Text>
                 </TouchableOpacity>
 
