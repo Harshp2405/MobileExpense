@@ -19,7 +19,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import Swipeable from "react-native-gesture-handler/Swipeable";
+import { RectButton } from "react-native-gesture-handler";
 
 import { useState, useCallback, useRef } from "react";
 
@@ -217,6 +218,8 @@ export default function ExpensesScreen() {
   );
 
   const openModal = async () => {
+    resetForm();
+    setEditingExpenseId(null);
     const cats = await getCategories();
     const accts = await getAccounts();
     setCategoryList(cats || []);
@@ -587,9 +590,9 @@ const handleExportExcel = async () => {
   };
 
   /**
- * Opens the add/edit modal pre-populated with the expense's data for editing.
- * Loads fresh category/subcategory/account lists before showing the modal.
- */
+   * Opens the add/edit modal pre-populated with the expense's data for editing.
+   * Loads fresh category/subcategory/account lists before showing the modal.
+   */
   const handleEdit = async (item) => {
     if (saving) return; // debounce: prevent double-open
 
@@ -597,61 +600,76 @@ const handleExportExcel = async () => {
       // Close the swipeable drawer first
       swipeableRefs.current[item.id]?.close();
 
-      // Load fresh picklist data
-      const cats = await getCategories();
-      const accts = await getAccounts();
-      setCategoryList(cats || []);
-      setAccountList(accts || []);
-
-      // Pre-fill form fields from the expense being edited
+      // Pre-fill form fields immediately from item so modal opens without delay
       setTitle(item.title ?? "");
-      setAmount(String(item.amount ?? ""));
+      setAmount(item.amount != null ? String(item.amount) : "");
       setExpenseDate(item.date ?? formatExpenseDate());
       setCategory(item.category ?? "");
       setMethod(item.method ?? "Cash");
       setDescription(item.description ?? "");
       setImageUri(item.imageUri ?? null);
       setAccountId(item.accountId ?? null);
+      setSubcategory(item.subcategory ?? "");
+      setEditingExpenseId(item.id);
 
-      // Load subcategories for the expense's category
-      const matchedCat = (cats || []).find((c) => c.name === item.category);
+      // Open modal immediately so user sees edit panel without delay
+      setModalVisible(true);
+
+      // Fetch picklists in parallel to keep dropdowns / chips fresh
+      const [cats, accts] = await Promise.all([
+        getCategories(),
+        getAccounts(),
+      ]);
+      const validCats = cats || [];
+      setCategoryList(validCats);
+      setAccountList(accts || []);
+
+      // If category has subcategories, populate subcategoryList
+      const matchedCat = validCats.find((c) => c.name === item.category);
       if (matchedCat) {
         const subs = await getSubcategories(matchedCat.id);
         setSubcategoryList(subs || []);
       } else {
         setSubcategoryList([]);
       }
-      setSubcategory(item.subcategory ?? "");
-
-      // Set edit mode and open modal
-      setEditingExpenseId(item.id);
-      setModalVisible(true);
     } catch (err) {
-      console.error("[ExpensesScreen.handleEdit] Failed to open edit modal:", err);
+      console.error("[ExpensesScreen.handleEdit] Error opening edit modal:", err);
       Alert.alert("Error", "Could not load expense for editing.");
     }
   };
 
-
   const renderRightActions = (id) => (
-    <TouchableOpacity
+    <RectButton
       onPress={() => handleDelete(id)}
-      className="bg-red-500 justify-center items-center w-20 rounded-2xl mb-4"
+      style={{
+        backgroundColor: "#EF4444",
+        justifyContent: "center",
+        alignItems: "center",
+        width: 80,
+        borderRadius: 16,
+        marginBottom: 16,
+      }}
     >
       <Ionicons name="trash-outline" size={22} color="white" />
-
-      <Text className="text-white text-xs font-bold mt-1">Delete</Text>
-    </TouchableOpacity>
+      <Text style={{ color: "white", fontSize: 12, fontWeight: "bold", marginTop: 4 }}>Delete</Text>
+    </RectButton>
   );
 
   const renderLeftActions = (item) => (
-    <TouchableOpacity
+    <RectButton
       onPress={() => handleEdit(item)}
-      className="bg-blue-500 justify-center items-center w-20 rounded-2xl mb-4"
+      style={{
+        backgroundColor: "#2563EB",
+        justifyContent: "center",
+        alignItems: "center",
+        width: 80,
+        borderRadius: 16,
+        marginBottom: 16,
+      }}
     >
       <Ionicons name="create-outline" size={22} color="white" />
-      <Text className="text-white text-xs font-bold mt-1">Edit</Text>
-    </TouchableOpacity>
+      <Text style={{ color: "white", fontSize: 12, fontWeight: "bold", marginTop: 4 }}>Edit</Text>
+    </RectButton>
   );
 
 
