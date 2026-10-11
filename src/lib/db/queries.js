@@ -477,7 +477,7 @@ export const initDatabase = async () => {
             id: 3,
             name: "Transport",
             color: "#3B82F6",
-            subcategories: [],
+            subcategories: ["Bike" , "Bus"],
             createdAt: new Date().toISOString(),
           },
           {
@@ -498,7 +498,7 @@ export const initDatabase = async () => {
             id: 6,
             name: "Bills",
             color: "#14B8A6",
-            subcategories: [],
+            subcategories: ["Rent" , "SIP"],
             createdAt: new Date().toISOString(),
           },
         ];
