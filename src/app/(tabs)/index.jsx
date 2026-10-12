@@ -14,18 +14,12 @@ import {
   ToastAndroid,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-
 import { Ionicons } from "@expo/vector-icons";
-
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import Swipeable from "react-native-gesture-handler/Swipeable";
 import { RectButton } from "react-native-gesture-handler";
-
 import { useState, useCallback, useRef } from "react";
-
 import { useFocusEffect } from "expo-router";
-
 import {
   getExpensesByMonth,
   getExpenseHistory,
@@ -37,54 +31,38 @@ import {
   getAccounts,
   updateExpense,
 } from "../../lib/db/queries";
-
 import { exportToPDF } from "../../lib/utils/pdfExporter";
-
 import { syncAll } from "../../lib/sync/syncManager";
-
 import { useColorScheme } from "nativewind";
 import ReceiptPicker from "@/components/ReceiptPicker";
-
 import * as DocumentPicker from "expo-document-picker";
 import { exportExpensesToExcel } from "../../lib/excel/exportExcel";
 import { importExpensesFromFile } from "../../lib/excel/importExcel";
 import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplate";
-
 import PrivacyText from "@/components/PrivacyText";
 import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
 import { parseTransactionText } from "@/lib/features/transactionParser";
 import { toastMessage } from "@/lib/utils/helperFunctions";
 // import { extractReceiptFields } from "@/lib/features/receiptOcr";
 import * as Notifications from "expo-notifications";
-
 import { ExportCancelledError } from "@/lib/utils/publicStorage";
-
 import { refreshSpendingWidget } from "@/lib/widgets/spendingSnapshot";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+
 const METHODS = ["Cash", "Card", "UPI", "Other"];
 
 const MONTHS = [
   "January",
-
   "February",
-
   "March",
-
   "April",
-
   "May",
-
   "June",
-
   "July",
-
   "August",
-
   "September",
-
   "October",
-
   "November",
-
   "December",
 ];
 
@@ -103,36 +81,24 @@ export default function ExpensesScreen() {
 
   const isDark = colorScheme === "dark";
   const { isPrivate, togglePrivacy } = usePrivacyMode();
-
-
   const [expenses, setExpenses] = useState([]);
-
   const [totalSpent, setTotalSpent] = useState(0);
-
   const [loading, setLoading] = useState(true);
-
   const [modalVisible, setModalVisible] = useState(false);
-
   const [categoryList, setCategoryList] = useState([]);
-
   const [saving, setSaving] = useState(false);
   // null = "Add" mode, number = "Edit" mode (holds the expense ID being edited)
   const [editingExpenseId, setEditingExpenseId] = useState(null);
-
   // const [ocrLoading, setOcrLoading] = useState(false);
-
   const [imageUri, setImageUri] = useState(null);
   const [previewImageUri, setPreviewImageUri] = useState(null);
-
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipText, setTooltipText] = useState("");
-
   const exportingRef = useRef(false);
 
   const showActionTooltip = (text) => {
     setTooltipText(text);
     setShowTooltip(true);
-
     setTimeout(() => {
       setShowTooltip(false);
       setTooltipText("");
@@ -143,65 +109,43 @@ export default function ExpensesScreen() {
   const now = new Date();
 
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth()); // 0-11
-
   const [selectedYear, setSelectedYear] = useState(now.getFullYear()); // 2010-2110
-
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
-
   const [yearPickerVisible, setYearPickerVisible] = useState(false);
-
   // Calculate standard 'yyyy-mm' key to match MongoDB and Web frontend
-
   const monthKey = `${selectedYear}-${String(selectedMonth + 1).padStart(2, "0")}`;
 
   // Form state
 
   const [title, setTitle] = useState("");
-
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(() => formatExpenseDate());
-
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState(""); // NEW
   const [subcategoryList, setSubcategoryList] = useState([]); // NEW
-
   const [method, setMethod] = useState("Cash");
-
   const [description, setDescription] = useState("");
-
   const [accountList, setAccountList] = useState([]);
   const [accountId, setAccountId] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-
       // Trigger sync in background
-
       syncAll()
         .then(async () => {
           const data = await getExpensesByMonth(monthKey);
-
           setExpenses(data || []);
-
           const history = await getExpenseHistory();
-
           const currentHistory = history.find((h) => h.month === monthKey);
-
           setTotalSpent(currentHistory ? currentHistory.total : 0);
         })
         .catch((e) => console.warn("Background sync failed:", e));
-
       // Load initial local data immediately for fast load
-
       const data = await getExpensesByMonth(monthKey);
-
       setExpenses(data || []);
-
       const history = await getExpenseHistory();
-
       const currentHistory = history.find((h) => h.month === monthKey);
-
       setTotalSpent(currentHistory ? currentHistory.total : 0);
       refreshSpendingWidget();
     } catch (error) {
@@ -244,14 +188,10 @@ export default function ExpensesScreen() {
 
   const resetForm = () => {
     setTitle("");
-
     setAmount("");
     setExpenseDate(formatExpenseDate());
-
     setCategory("");
-
     setMethod("Cash");
-
     setDescription("");
     setSubcategory(""); // NEW
     setSubcategoryList([]); // NEW
@@ -387,29 +327,20 @@ export default function ExpensesScreen() {
   //   if (expenses.length === 0) {
   //     Alert.alert(
   //       "No Expenses",
-
   //       "There are no expenses in this month to export.",
   //     );
-
   //     return;
   //   }
-
   //   try {
   //     const savedPath = await exportToPDF({
   //       expenses,
-
   //       monthName: MONTHS[selectedMonth],
-
   //       year: selectedYear,
-
   //       totalSpent,
   //     });
-
   //     const filename = savedPath.split("/").pop();
-
   //     Alert.alert(
   //       "Download Complete",
-
   //       `Saved to local storage as:\n\n${filename}`,
   //     );
   //   } catch (e) {
@@ -430,14 +361,11 @@ export default function ExpensesScreen() {
         );
         return;
       }
-
       const fuelTotal = fuelLogs.reduce(
         (total, log) => total + Number(log.totalCost || 0),
         0,
       );
-
       const combinedTotal = Number(totalSpent || 0) + fuelTotal;
-
       const saved = await exportToPDF({
         expenses,
         fuelLogs,
@@ -472,7 +400,6 @@ export default function ExpensesScreen() {
         Alert.alert("Smart Paste", parsed.error);
         return;
       }
-
       setTitle((current) => current || parsed.data.title);
       setAmount((current) => current || String(parsed.data.amount));
       setMethod((current) =>
@@ -488,8 +415,6 @@ export default function ExpensesScreen() {
     }
   };
 
-
-  
 const handleExportExcel = async () => {
     if (exportingRef.current) return;
     exportingRef.current = true;
@@ -501,7 +426,6 @@ const handleExportExcel = async () => {
         );
         return;
       }
-
       const saved = await exportExpensesToExcel({
         expenses,
         monthName: MONTHS[selectedMonth],
@@ -535,14 +459,12 @@ const handleExportExcel = async () => {
       });
 
       if (result.canceled) return;
-
       const file = result.assets?.[0];
       if (!file) return;
 
       const fileType = file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv";
       const response = await fetch(file.uri);
       const arrayBuffer = await response.arrayBuffer();
-
       const importedCount = await importExpensesFromFile(arrayBuffer, fileType);
 
       Alert.alert("Import successful", `${importedCount} expenses imported.`);
@@ -565,7 +487,6 @@ const handleExportExcel = async () => {
 
   const handleDelete = (id) => {
     swipeableRefs.current[id]?.close();
-
     if (Platform.OS === "web") {
       if (window.confirm("Are you sure you want to delete this expense?")) {
         deleteExpense(id).then(() => loadData());
@@ -573,12 +494,9 @@ const handleExportExcel = async () => {
     } else {
       Alert.alert("Delete", "Are you sure?", [
         { text: "Cancel" },
-
         {
           text: "Delete",
-
           style: "destructive",
-
           onPress: async () => {
             await deleteExpense(id);
             toastMessage("Expense Deleted" , 1,1,20,20)
@@ -611,10 +529,8 @@ const handleExportExcel = async () => {
       setAccountId(item.accountId ?? null);
       setSubcategory(item.subcategory ?? "");
       setEditingExpenseId(item.id);
-
       // Open modal immediately so user sees edit panel without delay
       setModalVisible(true);
-
       // Fetch picklists in parallel to keep dropdowns / chips fresh
       const [cats, accts] = await Promise.all([
         getCategories(),
@@ -805,7 +721,6 @@ const handleExportExcel = async () => {
                       </View>
                     )}
                   </View>
-
                   <View className="relative items-center">
                     <TouchableOpacity
                       onPress={() => {
@@ -826,7 +741,6 @@ const handleExportExcel = async () => {
                       </View>
                     )}
                   </View>
-
                   <View className="relative items-center">
                     <TouchableOpacity
                       onPress={() => {
@@ -843,7 +757,6 @@ const handleExportExcel = async () => {
                       </View>
                     )}
                   </View>
-
                 </View>
               </View>
             </View>
@@ -913,7 +826,6 @@ const handleExportExcel = async () => {
                   ₹{item.amount.toFixed(2)}
                 </Text>
  */}
-
                 <PrivacyText
                   value={item.amount}
                   className="text-base font-black text-gray-900 dark:text-gray-100"
@@ -960,7 +872,6 @@ const handleExportExcel = async () => {
                 <TouchableOpacity
                   onPress={() => {
                     resetForm();
-
                     setModalVisible(false);
                   }}
                 >
@@ -1174,7 +1085,6 @@ const handleExportExcel = async () => {
                     {saving ? (editingExpenseId != null ? "Updating..." : "Saving...") : (editingExpenseId != null ? "Update" : "Save")}
                   </Text>
                 </TouchableOpacity>
-
                 <View className="h-8" />
               </ScrollView>
             </View>
@@ -1241,7 +1151,6 @@ const handleExportExcel = async () => {
                 <TouchableOpacity
                   onPress={() => {
                     setSelectedYear(item);
-
                     setYearPickerVisible(false);
                   }}
                   className={`p-4 rounded-xl items-center mb-2 border ${selectedYear === item ? "bg-blue-600 border-blue-600" : "bg-gray-50 dark:bg-zinc-700 border-gray-100 dark:border-zinc-600"}`}
