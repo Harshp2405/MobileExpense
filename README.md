@@ -25,6 +25,29 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Email a local monthly report
+
+In the Expenses tab, select a month and year, tap **Email Report**, and enter
+one recipient address. The app reads that month's local expenses and fuel logs,
+generates the existing PDF report, and opens an email draft with the PDF attached.
+Review the draft and tap **Send** in your email app.
+
+- Requires `expo-mail-composer` and a configured email app on Android or iOS.
+  Rebuild an existing native development/production app after installing it.
+- No MongoDB, Resend account, API key, or backend is needed for this action.
+- Generating a draft does not require server sync. Your email provider needs
+  connectivity to deliver it; the email app may queue outgoing mail offline.
+- Income is not included. The report contains unmasked financial details;
+  verify the recipient and attachment before sending.
+- The app does not claim delivery, because opening/closing a composer cannot
+  reliably confirm it. Canceling the draft sends nothing through this app.
+- On web, the same button downloads a PDF using `jspdf`, then displays an
+  **Open Email Draft** link with the recipient and summary. Attach the downloaded
+  PDF manually. A configured browser/OS email handler is required to open the
+  draft; otherwise compose in your webmail. No email is sent automatically.
+- The browser PDF uses built-in fonts, which may not render all non-Latin
+  transaction text. Native PDF generation remains unchanged.
+
 ## Get a fresh project
 
 When you're ready, run:

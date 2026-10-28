@@ -3,7 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { saveExportFile, MIME_TYPES } from "./publicStorage";
 
 
-export const exportToPDF = async ({
+export const createReportPDF = async ({
   expenses = [],
   fuelLogs = [],
   monthName,
@@ -128,7 +128,6 @@ export const exportToPDF = async ({
       <meta charset="utf-8">
       <title>Expense Report - ${monthName} ${year}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
         body {
           font-family: 'Inter', sans-serif;
           color: #1F2937;
@@ -449,10 +448,14 @@ export const exportToPDF = async ({
   //   throw error;
   // }
 
-    const { uri: tempUri } = await Print.printToFileAsync({ html: htmlContent });
+  return Print.printToFileAsync({ html: htmlContent });
+};
+
+export const exportToPDF = async (options) => {
+  const { uri: tempUri } = await createReportPDF(options);
 
   try {
-    const fileName = `Expense_and_Fuel_Report_${monthName}_${year}.pdf`;
+    const fileName = `Expense_and_Fuel_Report_${options.monthName}_${options.year}.pdf`;
     const base64 = await FileSystem.readAsStringAsync(tempUri, {
       encoding: FileSystem.EncodingType.Base64,
     });

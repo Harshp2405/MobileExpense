@@ -103,7 +103,8 @@
           ]
         }
       ],
-      "expo-widgets"
+      "expo-widgets",
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true,

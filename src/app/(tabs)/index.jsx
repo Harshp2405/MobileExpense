@@ -35,6 +35,7 @@ import { exportToPDF } from "../../lib/utils/pdfExporter";
 import { syncAll } from "../../lib/sync/syncManager";
 import { useColorScheme } from "nativewind";
 import ReceiptPicker from "@/components/ReceiptPicker";
+import EmailReportButton from "@/components/EmailReportButton";
 import * as DocumentPicker from "expo-document-picker";
 import { exportExpensesToExcel } from "../../lib/excel/exportExcel";
 import { importExpensesFromFile } from "../../lib/excel/importExcel";
@@ -634,6 +635,12 @@ const handleExportExcel = async () => {
                   />
                 </TouchableOpacity>
               </View>
+
+              <EmailReportButton
+                monthKey={monthKey}
+                monthName={MONTHS[selectedMonth]}
+                year={selectedYear}
+              />
 
               <View className="flex-row justify-between items-center mb-8">
                 <View>
