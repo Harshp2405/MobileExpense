@@ -931,6 +931,57 @@ export const addIncome = async ({
   return result[0];
 };
 
+export const updateIncome = async (
+  id,
+  { title, amount, source, date, description, month, method, accountId },
+) => {
+  if (!db) {
+    if (Platform.OS === "web") {
+      const list = JSON.parse(localStorage.getItem("income") || "[]");
+      const index = list.findIndex((item) => item.id === id);
+      if (index === -1) throw new Error("Income not found");
+      list[index] = {
+        ...list[index],
+        title,
+        amount: Number(amount),
+        source: source || "Other",
+        date: date || list[index].date,
+        description: description || "",
+        month: month || list[index].month,
+        method: method || "Cash",
+        accountId: accountId || null,
+      };
+      localStorage.setItem("income", JSON.stringify(list));
+      return list[index];
+    }
+    throw new Error("Database not initialized");
+  }
+
+  try {
+    const result = await db
+      .update(income)
+      .set({
+        title,
+        amount: Number(amount),
+        source: source || "Other",
+        date,
+        ...(month ? { month } : {}),
+        description: description || "",
+        method: method || "Cash",
+        accountId: accountId || null,
+        syncStatus: "pending",
+      })
+      .where(eq(income.id, id))
+      .returning();
+
+    if (result.length === 0) throw new Error("Income not found");
+    return result[0];
+  } catch (error) {
+    console.error("[queries.updateIncome] Failed:", error);
+    throw new Error("Failed to update income");
+  }
+};
+
 export const deleteIncome = async (id) => {
   if (!db) {
     if (Platform.OS === "web") {

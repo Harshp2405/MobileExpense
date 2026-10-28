@@ -20,6 +20,10 @@ import {
   addAccount,
   deleteAccount,
   addTransfer,
+  getAllIncome,
+  addIncome,
+  updateIncome,
+  deleteIncome,
 } from "../../lib/db/queries";
 
 const ACCOUNT_TYPES = ["Cash", "Bank", "Card", "UPI", "Wallet"];
@@ -37,6 +41,7 @@ const COLORS = [
 
 export default function AccountsScreen() {
   const [accounts, setAccounts] = useState([]);
+  const [incomeEntries, setIncomeEntries] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,11 +58,25 @@ export default function AccountsScreen() {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferNote, setTransferNote] = useState("");
 
+  const [incomeVisible, setIncomeVisible] = useState(false);
+  const [incomeSaving, setIncomeSaving] = useState(false);
+  const [editingIncomeId, setEditingIncomeId] = useState(null);
+  const [incomeTitle, setIncomeTitle] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeSource, setIncomeSource] = useState("");
+  const [incomeDate, setIncomeDate] = useState("");
+  const [incomeDescription, setIncomeDescription] = useState("");
+  const [incomeAccountId, setIncomeAccountId] = useState(null);
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await getAccountsWithBalances();
+      const [data, incomes] = await Promise.all([
+        getAccountsWithBalances(),
+        getAllIncome(),
+      ]);
       setAccounts(data || []);
+      setIncomeEntries(incomes || []);
     } catch (error) {
       console.error("Failed to load accounts", error);
     } finally {
@@ -73,11 +92,122 @@ export default function AccountsScreen() {
 
   const combinedBalance = accounts.reduce((sum, a) => sum + a.balance, 0);
 
+  const formatDate = (date = new Date()) =>
+    `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+
+  const normalizeIncomeDate = (value) => {
+    const isoDate = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return isoDate ? `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}` : value || formatDate();
+  };
+
   const resetForm = () => {
     setName("");
     setType(ACCOUNT_TYPES[0]);
     setColor(COLORS[0]);
     setInitialBalance("");
+  };
+
+  const resetIncomeForm = () => {
+    setEditingIncomeId(null);
+    setIncomeTitle("");
+    setIncomeAmount("");
+    setIncomeSource("");
+    setIncomeDate(formatDate());
+    setIncomeDescription("");
+    setIncomeAccountId(accounts[0]?.id ?? null);
+  };
+
+  const openIncomeForm = (entry = null) => {
+    if (entry) {
+      setEditingIncomeId(entry.id);
+      setIncomeTitle(entry.title || "");
+      setIncomeAmount(String(entry.amount ?? ""));
+      setIncomeSource(entry.source || "");
+      setIncomeDate(normalizeIncomeDate(entry.date));
+      setIncomeDescription(entry.description || "");
+      setIncomeAccountId(entry.accountId ?? accounts[0]?.id ?? null);
+    } else {
+      resetIncomeForm();
+    }
+    setIncomeVisible(true);
+  };
+
+  const handleSaveIncome = async () => {
+    if (incomeSaving) return;
+    const numericAmount = Number(incomeAmount);
+    const dateMatch = incomeDate.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!incomeTitle.trim()) {
+      Alert.alert("Error", "Income title is required");
+      return;
+    }
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      Alert.alert("Error", "Amount must be greater than zero");
+      return;
+    }
+    if (!dateMatch) {
+      Alert.alert("Error", "Enter the date in DD/MM/YYYY format");
+      return;
+    }
+    const [, dayText, monthText, yearText] = dateMatch;
+    const date = new Date(Number(yearText), Number(monthText) - 1, Number(dayText));
+    if (
+      date.getFullYear() !== Number(yearText) ||
+      date.getMonth() !== Number(monthText) - 1 ||
+      date.getDate() !== Number(dayText)
+    ) {
+      Alert.alert("Error", "Enter a valid date");
+      return;
+    }
+    if (!incomeAccountId) {
+      Alert.alert("Error", "Select an account for this income");
+      return;
+    }
+
+    try {
+      setIncomeSaving(true);
+      const incomeData = {
+        title: incomeTitle.trim(),
+        amount: numericAmount,
+        source: incomeSource.trim() || "Other",
+        date: incomeDate.trim(),
+        description: incomeDescription.trim(),
+        month: `${yearText}-${monthText}`,
+        method: accounts.find((account) => account.id === incomeAccountId)?.type || "Cash",
+        accountId: incomeAccountId,
+      };
+      if (editingIncomeId != null) {
+        await updateIncome(editingIncomeId, incomeData);
+      } else {
+        await addIncome(incomeData);
+      }
+      setIncomeVisible(false);
+      resetIncomeForm();
+      await loadData();
+    } catch (error) {
+      Alert.alert("Error", error.message || "Failed to save income");
+    } finally {
+      setIncomeSaving(false);
+    }
+  };
+
+  const handleDeleteIncome = (entry) => {
+    const confirmDelete = async () => {
+      try {
+        await deleteIncome(entry.id);
+        await loadData();
+      } catch (error) {
+        Alert.alert("Error", error.message || "Failed to delete income");
+      }
+    };
+    const message = `Delete "${entry.title}" income?`;
+    if (Platform.OS === "web") {
+      if (window.confirm(message)) confirmDelete();
+      return;
+    }
+    Alert.alert("Delete Income", message, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: confirmDelete },
+    ]);
   };
 
   const handleSave = async () => {
@@ -180,6 +310,13 @@ export default function AccountsScreen() {
                 </Text>
                 <View className="flex-row gap-2">
                   <TouchableOpacity
+                    onPress={() => openIncomeForm()}
+                    className="bg-green-600 h-10 px-3 rounded-full flex-row items-center justify-center shadow-sm"
+                  >
+                    <Ionicons name="arrow-down" size={18} color="white" />
+                    <Text className="text-white font-semibold ml-1">Income</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     onPress={openTransferModal}
                     className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700"
                   >
@@ -202,6 +339,56 @@ export default function AccountsScreen() {
                   ₹{combinedBalance.toFixed(2)}
                 </Text>
               </View>
+            </View>
+          }
+          ListFooterComponent={
+            <View className="mt-2">
+              <Text className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+                Income History
+              </Text>
+              {incomeEntries.length === 0 ? (
+                <Text className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  No income recorded yet.
+                </Text>
+              ) : (
+                incomeEntries.map((entry) => {
+                  const accountName =
+                    accounts.find((account) => account.id === entry.accountId)?.name ||
+                    "Unassigned";
+                  return (
+                    <View
+                      key={entry.id}
+                      className="bg-white dark:bg-zinc-800 rounded-2xl p-4 mb-3 border border-gray-100 dark:border-zinc-700 flex-row items-center"
+                    >
+                      <View className="flex-1 mr-2">
+                        <Text className="text-base font-bold text-gray-900 dark:text-gray-100">
+                          {entry.title}
+                        </Text>
+                        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {entry.source || "Income"} · {accountName} · {entry.date}
+                        </Text>
+                      </View>
+                      <Text className="text-base font-bold text-green-600 mr-2">
+                        +₹{Number(entry.amount || 0).toFixed(2)}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => openIncomeForm(entry)}
+                        accessibilityLabel={`Edit ${entry.title} income`}
+                        className="w-9 h-9 rounded-full bg-blue-50 dark:bg-blue-900/30 items-center justify-center mr-1"
+                      >
+                        <Ionicons name="create-outline" size={17} color="#2563EB" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteIncome(entry)}
+                        accessibilityLabel={`Delete ${entry.title} income`}
+                        className="w-9 h-9 rounded-full bg-red-50 dark:bg-red-900/30 items-center justify-center"
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              )}
             </View>
           }
           ListEmptyComponent={
@@ -242,6 +429,127 @@ export default function AccountsScreen() {
           )}
         />
       )}
+
+      <Modal  visible={incomeVisible} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <View className="flex-1 justify-end bg-black/40 dark:bg-black/60">
+            <View className="bg-white dark:bg-zinc-800 rounded-t-3xl p-6 max-h-[85%]">
+              <View className="flex-row justify-between items-center mb-6">
+                <Text className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  {editingIncomeId != null ? "Edit Income" : "Add Income"}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setIncomeVisible(false);
+                    resetIncomeForm();
+                  }}
+                  accessibilityLabel="Close income form"
+                >
+                  <Ionicons name="close" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Title *
+                </Text>
+                <TextInput
+                  value={incomeTitle}
+                  onChangeText={setIncomeTitle}
+                  placeholder="e.g. Monthly salary"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
+                />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Amount *
+                </Text>
+                <TextInput
+                  value={incomeAmount}
+                  onChangeText={setIncomeAmount}
+                  placeholder="0.00"
+                  keyboardType="decimal-pad"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
+                />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Deposit to *
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                  <View className="flex-row gap-2">
+                    {accounts.map((account) => (
+                      <TouchableOpacity
+                        key={account.id}
+                        onPress={() => setIncomeAccountId(account.id)}
+                        className={`px-4 py-2 rounded-full border ${incomeAccountId === account.id ? "bg-blue-600 border-blue-600" : "bg-white dark:bg-zinc-700 border-gray-200 dark:border-zinc-600"}`}
+                      >
+                        <Text
+                          className={`text-sm font-semibold ${incomeAccountId === account.id ? "text-white" : "text-gray-700 dark:text-gray-300"}`}
+                        >
+                          {account.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Source
+                </Text>
+                <TextInput
+                  value={incomeSource}
+                  onChangeText={setIncomeSource}
+                  placeholder="e.g. Salary, freelance"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
+                />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Date (DD/MM/YYYY)
+                </Text>
+                <TextInput
+                  value={incomeDate}
+                  onChangeText={setIncomeDate}
+                  placeholder="DD/MM/YYYY"
+                  keyboardType="numeric"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-4"
+                />
+
+                <Text className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Description
+                </Text>
+                <TextInput
+                  value={incomeDescription}
+                  onChangeText={setIncomeDescription}
+                  placeholder="Optional note"
+                  placeholderTextColor="#9CA3AF"
+                  className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-base text-gray-900 dark:text-gray-100 mb-6"
+                />
+
+                <TouchableOpacity
+                  onPress={handleSaveIncome}
+                  disabled={incomeSaving}
+                  className={`rounded-2xl py-4 items-center ${incomeSaving ? "bg-green-300" : "bg-green-600"}`}
+                >
+                  <Text className="text-white font-bold text-base">
+                    {incomeSaving
+                      ? "Saving..."
+                      : editingIncomeId != null
+                        ? "Update Income"
+                        : "Save Income"}
+                  </Text>
+                </TouchableOpacity>
+                <View className="h-8" />
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Add Account Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
