@@ -246,29 +246,44 @@ export async function sendReportViaResend({
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    const contentType = response.headers.get("content-type") || "";
 
-    if (response.ok && (data.success || data.id || data.data?.id)) {
-      return {
-        success: true,
-        emailId: data.id || data.data?.id || "accepted",
-        recipient: cleanRecipient,
-      };
-    } else {
-      if (response.status === 400 || response.status === 422) {
-        throw new Error(data?.error || data?.message || "Email rejected by server");
+    // If the server responded with HTML (e.g. static SPA fallback index.html), don't call response.json()
+    if (!contentType.includes("application/json")) {
+      if (Platform.OS === "web") {
+        throw new Error(
+          "Direct Resend sending on Web requires a deployed backend server. Please use 'Download PDF & Open Draft' on Web."
+        );
       }
       useFallback = true;
+    } else {
+      const data = await response.json();
+
+      if (response.ok && (data.success || data.id || data.data?.id)) {
+        return {
+          success: true,
+          emailId: data.id || data.data?.id || "accepted",
+          recipient: cleanRecipient,
+        };
+      } else {
+        if (response.status === 400 || response.status === 422) {
+          throw new Error(data?.error || data?.message || "Email rejected by server");
+        }
+        useFallback = true;
+      }
     }
   } catch (err) {
     if (
       err.message &&
-      !err.message.includes("Network request failed") &&
-      !err.message.includes("Failed to fetch")
+      (err.message.includes("requires a deployed backend") ||
+        err.message.includes("Email rejected") ||
+        err.message.includes("recipient email"))
     ) {
       throw err;
     }
-    console.warn(`[resendReportService] API route call failed (${err.message}). Checking direct fallback...`);
+    console.warn(
+      `[resendReportService] API route call failed (${err.message}). Checking direct fallback...`
+    );
     useFallback = true;
   }
 

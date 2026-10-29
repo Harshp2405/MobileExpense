@@ -404,17 +404,19 @@ export default function EmailReportButton({ monthKey, monthName, year }) {
                 </Text>
               </TouchableOpacity>
 
-              {/* OPTIONAL SECONDARY ACTION: Direct Send via Resend (Online) */}
-              <TouchableOpacity
-                onPress={handleSendViaResend}
-                disabled={loading}
-                className="rounded-xl py-2.5 items-center mb-2 border border-gray-200 dark:border-zinc-700 active:bg-gray-50 dark:active:bg-zinc-700 flex-row justify-center gap-1.5"
-              >
-                <Ionicons name="paper-plane-outline" size={14} color="#6B7280" />
-                <Text className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                  Or Send Directly via Resend (Requires Internet)
-                </Text>
-              </TouchableOpacity>
+              {/* OPTIONAL SECONDARY ACTION: Direct Send via Resend (Mobile Native Only) */}
+              {Platform.OS !== "web" ? (
+                <TouchableOpacity
+                  onPress={handleSendViaResend}
+                  disabled={loading}
+                  className="rounded-xl py-2.5 items-center mb-2 border border-gray-200 dark:border-zinc-700 active:bg-gray-50 dark:active:bg-zinc-700 flex-row justify-center gap-1.5"
+                >
+                  <Ionicons name="paper-plane-outline" size={14} color="#6B7280" />
+                  <Text className="text-xs font-semibold text-gray-600 dark:text-gray-400">
+                    Or Send Directly via Resend (Requires Internet)
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
               {/* Close Button */}
               <TouchableOpacity
