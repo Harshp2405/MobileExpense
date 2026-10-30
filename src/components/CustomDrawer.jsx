@@ -6,6 +6,11 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
@@ -13,6 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getExpensesByMonth, getBudgetByMonth } from "../lib/db/queries";
 import { syncAll } from "../lib/sync/syncManager";
 import { useThemePersist } from "../lib/utils/useThemePersist";
+import { getItem, setItem } from "../lib/utils/storage";
+import { toastMessage } from "../lib/utils/helperFunctions";
+
+const USER_NAME_KEY = "user_profile_name";
+const DEFAULT_USER_NAME = "Buddy";
 
 const MENU_ITEMS = [
   {
@@ -55,6 +65,12 @@ export default function CustomDrawerContent(props) {
   const [budgetLimit, setBudgetLimit] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState("");
+
+  // User Profile Name state
+  const [userName, setUserName] = useState(DEFAULT_USER_NAME);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(DEFAULT_USER_NAME);
+  const [isSavingName, setIsSavingName] = useState(false);
 
   // Calculate current YYYY-MM key
   const today = new Date();
@@ -111,6 +127,73 @@ export default function CustomDrawerContent(props) {
     };
   }, [loadFinancialStats]);
 
+  // Load saved user profile name from storage on mount
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const saved = await getItem(USER_NAME_KEY);
+        if (isMounted && typeof saved === "string" && saved.trim().length > 0) {
+          setUserName(saved.trim());
+        }
+      } catch (error) {
+        console.error("[CustomDrawer] Failed to load saved user name:", error);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleOpenEditModal = useCallback(() => {
+    setTempName(userName);
+    setIsEditingName(true);
+  }, [userName]);
+
+  const handleCloseEditModal = useCallback(() => {
+    if (isSavingName) return;
+    setIsEditingName(false);
+    setTempName(userName);
+  }, [isSavingName, userName]);
+
+  const handleSaveName = useCallback(async () => {
+    if (isSavingName) return; // Debounce guard against multiple submissions
+    try {
+      setIsSavingName(true);
+      const sanitized = (tempName ?? "")
+        .replace(/[\r\n\t]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const finalName = sanitized.length > 0 ? sanitized : DEFAULT_USER_NAME;
+      await setItem(USER_NAME_KEY, finalName);
+      setUserName(finalName);
+      setIsEditingName(false);
+      toastMessage("Name updated", 1, 1, 0, 80);
+    } catch (error) {
+      console.error("[CustomDrawer] Failed to save user name:", error);
+      Alert.alert("Error", "Could not save your name. Please try again.");
+    } finally {
+      setIsSavingName(false);
+    }
+  }, [tempName, isSavingName]);
+
+  const handleResetDefaultName = useCallback(async () => {
+    if (isSavingName) return;
+    try {
+      setIsSavingName(true);
+      await setItem(USER_NAME_KEY, DEFAULT_USER_NAME);
+      setUserName(DEFAULT_USER_NAME);
+      setTempName(DEFAULT_USER_NAME);
+      setIsEditingName(false);
+      toastMessage("Reset to Buddy", 1, 1, 0, 80);
+    } catch (error) {
+      console.error("[CustomDrawer] Failed to reset user name:", error);
+      Alert.alert("Error", "Could not reset name. Please try again.");
+    } finally {
+      setIsSavingName(false);
+    }
+  }, [isSavingName]);
+
   const handleManualSync = async () => {
     if (syncing) return;
     try {
@@ -153,6 +236,8 @@ export default function CustomDrawerContent(props) {
     badgeText = "text-amber-600 dark:text-amber-400";
   }
 
+  const avatarInitial = (userName?.trim()?.charAt(0) || "B").toUpperCase();
+
   return (
     <View className="flex-1 bg-white dark:bg-zinc-900">
       {/* 👤 Profile Banner */}
@@ -161,14 +246,29 @@ export default function CustomDrawerContent(props) {
         className="bg-blue-600 p-6 rounded-b-[32px] shadow-lg mb-6"
       >
         <View className="flex-row items-center mb-4">
-          <View className="w-14 h-14 bg-white/20 border border-white/30 rounded-2xl items-center justify-center mr-4">
-            <Text className="text-white text-2xl font-black">H</Text>
-          </View>
-          <View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleOpenEditModal}
+            className="w-14 h-14 bg-white/20 border border-white/30 rounded-2xl items-center justify-center mr-4"
+          >
+            <Text className="text-white text-2xl font-black">{avatarInitial}</Text>
+          </TouchableOpacity>
+          <View className="flex-1 justify-center mr-2">
             <Text className="text-white/80 text-xs font-semibold uppercase tracking-wider">
               Welcome back
             </Text>
-            <Text className="text-white text-xl font-bold">Harsh</Text>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleOpenEditModal}
+              className="flex-row items-center gap-1.5 mt-0.5"
+            >
+              <Text className="text-white text-xl font-bold flex-shrink" numberOfLines={1}>
+                {userName}
+              </Text>
+              <View className="bg-white/20 p-1 rounded-full">
+                <Ionicons name="pencil-outline" size={12} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
         <View className="flex-row items-center bg-white/10 px-3 py-1.5 rounded-xl self-start">
@@ -313,6 +413,111 @@ export default function CustomDrawerContent(props) {
           v1.0.0 • Production Ready
         </Text>
       </View>
+
+      {/* ✏️ Edit Name Modal */}
+      <Modal
+        visible={isEditingName}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseEditModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          className="flex-1 justify-center items-center bg-black/60 px-5"
+        >
+          <Pressable
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+            onPress={handleCloseEditModal}
+          />
+          <View className="w-full max-w-sm bg-white dark:bg-zinc-800 rounded-3xl p-6 border border-gray-100 dark:border-zinc-700 shadow-2xl">
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center gap-3">
+                <View className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 items-center justify-center">
+                  <Ionicons name="person-outline" size={20} color="#2563EB" />
+                </View>
+                <View>
+                  <Text className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                    Edit Name
+                  </Text>
+                  <Text className="text-xs text-gray-400 dark:text-gray-500">
+                    Personalize your greeting
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={handleCloseEditModal}
+                disabled={isSavingName}
+                className="p-1 rounded-full bg-gray-100 dark:bg-zinc-700"
+              >
+                <Ionicons
+                  name="close"
+                  size={18}
+                  color={isDark ? "#D1D5DB" : "#6B7280"}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
+              Display Name
+            </Text>
+
+            <TextInput
+              value={tempName}
+              onChangeText={setTempName}
+              placeholder="e.g. Buddy"
+              placeholderTextColor={isDark ? "#71717A" : "#9CA3AF"}
+              maxLength={25}
+              autoFocus={true}
+              autoCapitalize="words"
+              returnKeyType="done"
+              onSubmitEditing={handleSaveName}
+              className="w-full bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3.5 text-base text-gray-900 dark:text-gray-100 font-semibold mb-2"
+            />
+
+            <View className="flex-row justify-between items-center mb-6 px-1">
+              <Text className="text-[11px] text-gray-400 dark:text-gray-500">
+                Leave blank for default (Buddy)
+              </Text>
+              {userName !== DEFAULT_USER_NAME && (
+                <TouchableOpacity
+                  onPress={handleResetDefaultName}
+                  disabled={isSavingName}
+                >
+                  <Text className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    Reset to Buddy
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={handleCloseEditModal}
+                disabled={isSavingName}
+                className="flex-1 py-3.5 rounded-2xl border border-gray-200 dark:border-zinc-700 items-center justify-center bg-gray-100 dark:bg-zinc-700/60"
+              >
+                <Text className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveName}
+                disabled={isSavingName}
+                className={`flex-1 py-3.5 rounded-2xl items-center justify-center ${
+                  isSavingName ? "bg-blue-400" : "bg-blue-600"
+                }`}
+              >
+                {isSavingName ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="text-sm font-bold text-white">Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
