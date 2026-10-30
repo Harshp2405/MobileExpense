@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, Switch, Platform, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Switch, Platform, Alert, ScrollView } from "react-native";
+import DatabaseTransfer from "../../components/DatabaseTransfer";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useThemePersist } from "../../lib/utils/useThemePersist";
@@ -25,6 +26,7 @@ export default function UserSettings() {
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50 dark:bg-zinc-900 p-6">
+      <ScrollView showsVerticalScrollIndicator={false}>
       <Text className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
         Settings
       </Text>
@@ -32,6 +34,7 @@ export default function UserSettings() {
         Customize your app experience
       </Text>
 
+      <DatabaseTransfer />
       {/* Export Folder */}
       <TouchableOpacity
         onPress={async () => {
@@ -230,6 +233,7 @@ export default function UserSettings() {
           </Text>
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

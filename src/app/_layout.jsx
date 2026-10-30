@@ -8,7 +8,8 @@ import { syncAll } from "../lib/sync/syncManager";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { useThemePersist } from "../lib/utils/useThemePersist";
 import { registerBackupTask } from "../lib/backup/backgroundTask";
-import { Platform } from "react-native";
+import { Platform, Text, View } from "react-native";
+import { recoverPortableImport } from "../lib/backup/portableService";
 
 // NEW: Security + Privacy imports
 import { PrivacyProvider } from "../lib/privacy/usePrivacyMode";
@@ -24,6 +25,7 @@ import {
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
+  const [recoveryError, setRecoveryError] = useState(null);
   const { colorScheme } = useThemePersist();
   const isDark = colorScheme === "dark";
 
@@ -31,7 +33,15 @@ export default function RootLayout() {
   const { isLocked, isAuthenticating, authError, unlock } = useBiometricAuth();
 
   useEffect(() => {
-    initDatabase()
+    const initialize = async () => {
+      try {
+        await recoverPortableImport();
+      } catch (error) {
+        console.error("Could not recover interrupted database import", error);
+        setRecoveryError("Database import recovery failed. Do not clear browser storage. Free browser storage space and reload to retry.");
+        return;
+      }
+      await initDatabase()
       .then(async () => {
         if (Platform.OS !== "web") {
           await registerBackupTask();
@@ -42,6 +52,8 @@ export default function RootLayout() {
         console.error(e);
         setDbReady(true);
       });
+    };
+    initialize();
   }, []);
 
   useEffect(() => {
@@ -96,6 +108,13 @@ export default function RootLayout() {
   }, [dbReady]);
 
   // DB not ready yet — block render
+  if (recoveryError) {
+    return (
+      <View className="flex-1 justify-center p-6 bg-white">
+        <Text accessibilityRole="alert" className="text-red-600">{recoveryError}</Text>
+      </View>
+    );
+  }
   if (!dbReady) {
     return null;
   }

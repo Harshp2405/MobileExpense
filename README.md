@@ -25,6 +25,46 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Import and export the local database
+
+Open **Settings > Import / Export Database**.
+
+- **Export Database** saves a version 2 portable JSON backup of all eight data
+  tables: expenses, categories, subcategories, budgets, fuel logs, income,
+  accounts and transfers. Android uses the configured export folder, iOS offers
+  file sharing, and web requests a browser download.
+- **Import Database** lets you select that JSON file, review table counts and
+  confirm a merge. Export a safety copy first and close other browser tabs using
+  the app before importing.
+- Existing accounts/categories match by case-insensitive name, subcategories by
+  parent and name, and budgets by month. Existing values win these conflicts.
+  Transaction matches use remote IDs or matching content (including creation
+  time and remapped account references). Identical transactions retain their
+  multiplicity; repeating the same import does not add them again. A modified
+  transaction without a remote ID can be treated as a different transaction.
+- Imported IDs are remapped; account, category and transfer relationships remain
+  linked. Newly inserted sync-enabled rows are marked pending for the existing
+  sync process. Remote IDs are retained: only import trusted backups from your
+  own account/backend.
+- Native imports use one SQLite transaction. Web imports use synchronous storage
+  writes with rollback and a recovery journal checked before app initialization.
+  Quota/storage errors are shown, not reported as success.
+- Receipt image **paths** are preserved but image files are not included. Local
+  images from another device may be unavailable. Settings, authentication tokens
+  and credentials are deliberately not included.
+- Backups are unencrypted financial data. Keep them private. This importer
+  accepts the new portable format, not a raw `.db` file or older Google Drive
+  version 1 backup. Existing Drive backup/restore behavior is unchanged.
+- The file limit is 20 MiB and 100,000 rows. Missing tables, invalid field types,
+  duplicate IDs and broken references are rejected before writes.
+- Reopen the other tabs after importing so they reload the merged data.
+
+Run the merge and SQLite/storage rollback tests with Node.js 22.13+:
+
+```powershell
+node --test src\lib\backup\portableData.test.mjs
+```
+
 ## Email a local monthly report
 
 In the Expenses tab, select a month and year, tap **Email Report**, and enter

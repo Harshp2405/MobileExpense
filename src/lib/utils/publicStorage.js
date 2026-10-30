@@ -136,7 +136,9 @@ async function saveOnIos(fileName, base64, mimeType) {
       UTI:
         mimeType === MIME_TYPES.pdf
           ? "com.adobe.pdf"
-          : "org.openxmlformats.spreadsheetml.sheet",
+          : mimeType === "application/json"
+            ? "public.json"
+            : "org.openxmlformats.spreadsheetml.sheet",
     });
   }
 
