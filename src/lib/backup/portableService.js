@@ -3,7 +3,10 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import { expoDb } from "../db/client";
 import { saveExportFile } from "../utils/publicStorage";
-import { TABLES, mergePortableTables, normalizeTables, parsePortableBackup } from "./portableData";
+import {
+  TABLES, describeSkipped, mergePortableTables, normalizeRows, normalizeTables,
+  parsePortableBackup, splitBrokenReferences,
+} from "./portableData";
 
 const storageKeys = {
   categories: "categories", accounts: "accounts", budgets: "budgets",
@@ -46,24 +49,34 @@ function readTables() {
       tables[table] = expoDb.getAllSync(`SELECT ${columns} FROM "${sqlTable(table)}"`);
     }
   }
-  return normalizeTables(tables);
+  return normalizeRows(tables);
 }
 
-export function collectPortableBackup() {
+function buildPortableBackup() {
   let tables;
   if (isWebStorage()) tables = readTables();
   else {
     if (!expoDb) throw new Error("Database is not ready");
     expoDb.withTransactionSync(() => { tables = readTables(); });
   }
+  const split = splitBrokenReferences(tables);
+  normalizeTables(split.tables);
   return {
-    format: "expense-tracker-portable", version: 2,
-    exportedAt: new Date().toISOString(), imagesIncluded: false, tables,
+    backup: {
+      format: "expense-tracker-portable", version: 2,
+      exportedAt: new Date().toISOString(), imagesIncluded: false, tables: split.tables,
+    },
+    skipped: split.skipped,
   };
 }
 
+export function collectPortableBackup() {
+  return buildPortableBackup().backup;
+}
+
 export async function exportPortableFile() {
-  const backup = collectPortableBackup();
+  const { backup, skipped } = buildPortableBackup();
+  const note = describeSkipped(skipped);
   const text = JSON.stringify(backup, null, 2);
   if (new Blob([text]).size > 20 * 1024 * 1024) {
     throw new Error("Database exceeds the 20 MiB portable backup limit");
@@ -80,7 +93,7 @@ export async function exportPortableFile() {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    return `Download requested: ${fileName}`;
+    return `Download requested: ${fileName}.${note}`;
   }
   if (!FileSystem.cacheDirectory) throw new Error("Temporary storage is unavailable");
   const uri = `${FileSystem.cacheDirectory}${fileName}`;
@@ -88,7 +101,7 @@ export async function exportPortableFile() {
     await FileSystem.writeAsStringAsync(uri, text);
     const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
     const saved = await saveExportFile({ fileName, base64, mimeType: "application/json" });
-    return `Saved ${saved.fileName} to ${saved.location}`;
+    return `Saved ${saved.fileName} to ${saved.location}.${note}`;
   } finally {
     await FileSystem.deleteAsync(uri, { idempotent: true });
   }

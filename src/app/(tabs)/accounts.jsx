@@ -234,7 +234,7 @@ export default function AccountsScreen() {
   };
 
   const handleDelete = (id, accountName) => {
-    const message = `Delete "${accountName}"? Expenses and income using it will become unassigned.`;
+    const message = `Delete "${accountName}"? Expenses and income using it will become unassigned, and its transfers will be deleted.`;
     const runDelete = async () => {
       try {
         await deleteAccount(id);

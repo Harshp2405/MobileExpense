@@ -1,16 +1,22 @@
 import * as Print from "expo-print";
 import * as FileSystem from "expo-file-system/legacy";
 import { saveExportFile, MIME_TYPES } from "./publicStorage";
+import { accountNameFor } from "../reports/monthlyReportData";
 
 
 export const createReportPDF = async ({
   expenses = [],
   fuelLogs = [],
+  income = [],
+  accounts = [],
   monthName,
   year,
   totalSpent = 0,
   fuelTotal = 0,
   combinedTotal = 0,
+  incomeTotal = 0,
+  netSavings = incomeTotal - combinedTotal,
+  totalBalance = 0,
 }) => {
   const totalFuelLitres = fuelLogs.reduce(
     (total, log) => total + Number(log.litres || 0),
@@ -120,6 +126,92 @@ export const createReportPDF = async ({
       </table>
     `;
 
+  const money = (value) => `₹${Number(value || 0).toFixed(2)}`;
+  const incomeHtml = `
+      <section class="fuel-section">
+        <div class="section-heading">
+          <h2>Income</h2>
+          <span>${escapeHtml(monthName)} ${Number(year)} · ${money(incomeTotal)}</span>
+        </div>
+        ${
+          income.length === 0
+            ? `<p class="empty-section">No income recorded for this month.</p>`
+            : `
+        <table>
+          <thead>
+            <tr>
+              <th>Income</th>
+              <th>Source</th>
+              <th>Account</th>
+              <th>Date</th>
+              <th style="text-align: right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${income
+              .map(
+                (item) => `
+              <tr>
+                <td>
+                  <div class="expense-title">${escapeHtml(item.title)}</div>
+                  ${item.description ? `<div class="expense-desc">${escapeHtml(item.description)}</div>` : ""}
+                </td>
+                <td><span class="tag tag-category">${escapeHtml(item.source || "Other")}</span></td>
+                <td><span class="tag tag-method">${escapeHtml(accountNameFor(accounts, item.accountId))}</span></td>
+                <td>${escapeHtml(item.date || "-")}</td>
+                <td class="amount-val income-val">${money(item.amount)}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>`
+        }
+      </section>
+    `;
+
+  const accountsHtml = `
+      <section class="fuel-section">
+        <div class="section-heading">
+          <h2>Accounts</h2>
+          <span>Current balances · Total ${money(totalBalance)}</span>
+        </div>
+        ${
+          accounts.length === 0
+            ? `<p class="empty-section">No accounts created.</p>`
+            : `
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Type</th>
+              <th style="text-align: right;">Opening</th>
+              <th style="text-align: right;">Income</th>
+              <th style="text-align: right;">Spent</th>
+              <th style="text-align: right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${accounts
+              .map(
+                (account) => `
+              <tr>
+                <td><div class="expense-title">${escapeHtml(account.name)}</div></td>
+                <td><span class="tag tag-method">${escapeHtml(account.type || "Cash")}</span></td>
+                <td class="amount-val">${money(account.initialBalance)}</td>
+                <td class="amount-val income-val">${money(account.earned)}</td>
+                <td class="amount-val">${money(account.spent)}</td>
+                <td class="amount-val${Number(account.balance) < 0 ? " negative-val" : ""}">${money(account.balance)}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <p class="table-note">Balances are all-time: opening balance + income − expenses ± transfers. Fuel logs are not linked to accounts.</p>`
+        }
+      </section>
+    `;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -176,11 +268,12 @@ export const createReportPDF = async ({
         }
         .stats-container {
           display: flex;
+          flex-wrap: wrap;
           gap: 12px;
           margin-bottom: 30px;
         }
         .stat-card {
-  flex: 1;
+  flex: 1 1 28%;
   min-width: 0;
   border: 1px solid #E5E7EB;
   border-radius: 16px;
@@ -196,7 +289,7 @@ export const createReportPDF = async ({
           margin-bottom: 6px;
         }
         .stat-card .value {
-          font-size: 22px;
+          font-size: 20px;
           font-weight: 900;
           color: #111827;
         }
@@ -340,6 +433,20 @@ export const createReportPDF = async ({
   text-align: center;
 }
 
+.income-val {
+  color: #047857;
+}
+
+.negative-val {
+  color: #DC2626;
+}
+
+.table-note {
+  margin-top: 8px;
+  color: #9CA3AF;
+  font-size: 11px;
+}
+
       </style>
     </head>
     <body>
@@ -368,8 +475,16 @@ export const createReportPDF = async ({
     <div class="value">₹${Number(fuelTotal).toFixed(2)}</div>
   </div>
   <div class="stat-card">
+    <div class="label">Income</div>
+    <div class="value income-val">${money(incomeTotal)}</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Net</div>
+    <div class="value${netSavings < 0 ? " negative-val" : " income-val"}">${money(netSavings)}</div>
+  </div>
+  <div class="stat-card">
     <div class="label">Records</div>
-    <div class="value">${expenses.length + fuelLogs.length}</div>
+    <div class="value">${expenses.length + fuelLogs.length + income.length}</div>
   </div>
 </div>
 
@@ -410,6 +525,8 @@ export const createReportPDF = async ({
 
       ${fuelSummaryHtml}
       ${fuelTableHtml}
+      ${incomeHtml}
+      ${accountsHtml}
 
       <div class="footer">
         Generated automatically by Expense Tracker Mobile App
@@ -455,7 +572,7 @@ export const exportToPDF = async (options) => {
   const { uri: tempUri } = await createReportPDF(options);
 
   try {
-    const fileName = `Expense_and_Fuel_Report_${options.monthName}_${options.year}.pdf`;
+    const fileName = `Expense_Report_${options.monthName}_${options.year}.pdf`;
     const base64 = await FileSystem.readAsStringAsync(tempUri, {
       encoding: FileSystem.EncodingType.Base64,
     });

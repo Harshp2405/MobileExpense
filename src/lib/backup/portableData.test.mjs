@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 
 const source = await readFile(new URL("./portableData.js", import.meta.url), "utf8");
-const { TABLES, normalizeTables, parsePortableBackup, mergePortableTables } =
+const { TABLES, normalizeTables, normalizeRows, parsePortableBackup, mergePortableTables,
+  splitBrokenReferences, describeSkipped } =
   await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 const empty = () => Object.fromEntries(Object.keys(TABLES).map((table) => [table, []]));
 const data = () => ({
@@ -128,11 +129,13 @@ const serviceSource = (await readFile(new URL("./portableService.js", import.met
 function loadService(expoDb, storage) {
   return new Function(
     "Platform", "expoDb", "localStorage", "TABLES", "normalizeTables",
-    "mergePortableTables", "parsePortableBackup",
+    "mergePortableTables", "parsePortableBackup", "normalizeRows",
+    "splitBrokenReferences", "describeSkipped",
     `${serviceSource}
     return { collectPortableBackup, importPortableBackup, recoverPortableImport };`,
   )({ OS: storage ? "web" : "android" }, expoDb, storage, TABLES,
-    normalizeTables, mergePortableTables, parsePortableBackup);
+    normalizeTables, mergePortableTables, parsePortableBackup, normalizeRows,
+    splitBrokenReferences, describeSkipped);
 }
 
 function sqliteAdapter() {
@@ -251,4 +254,62 @@ test("browser recovery restores an interrupted import before normal startup", ()
   assert.equal(storage.getItem("accounts"), null);
   assert.equal(storage.getItem("expenses"), "[]");
   assert.equal(storage.getItem("portable_import_rollback"), null);
+});
+
+test("broken local references are set aside and described", () => {
+  const tables = normalizeRows({
+    ...data(),
+    transfers: [{ id: 7, fromAccountId: 99, toAccountId: 1, amount: 5, month: "2026-10" }],
+    subcategories: [{ id: 3, categoryId: 42, name: "Orphan" }],
+    income: [{ id: 1, title: "Salary", amount: 200, month: "2026-10", accountId: 99 }],
+  });
+  assert.throws(() => normalizeTables(tables), /missing/);
+  const { tables: clean, broken, skipped } = splitBrokenReferences(tables);
+  normalizeTables(clean);
+  assert.deepEqual(skipped, { transfers: 1, subcategories: 1, unassigned: 1 });
+  assert.equal(broken.transfers[0].id, 7);
+  assert.equal(clean.income[0].accountId, null);
+  assert.match(describeSkipped(skipped), /1 transfer\(s\) linked to deleted accounts/);
+  assert.equal(describeSkipped({ transfers: 0, subcategories: 0, unassigned: 0 }), "");
+});
+
+test("SQLite export skips transfers of deleted accounts; import keeps them and avoids ID reuse", () => {
+  const { db, adapter } = sqliteAdapter();
+  try {
+    const service = loadService(adapter);
+    service.importPortableBackup({ tables: data() });
+    // Mirror the app: FK cascades are off, so deleting an account leaves its transfer.
+    db.exec("PRAGMA foreign_keys = OFF");
+    db.exec("UPDATE income SET account_id = NULL WHERE account_id = 2");
+    db.exec("DELETE FROM accounts WHERE id = 2");
+    db.exec("INSERT INTO subcategories (id, category_id, name) VALUES (9, 42, 'Orphan')");
+    const exported = service.collectPortableBackup();
+    assert.equal(exported.tables.transfers.length, 0);
+    assert.equal(exported.tables.subcategories.length, 1);
+    const counts = service.importPortableBackup({ tables: data() });
+    assert.equal(counts.accounts.added, 1);
+    assert.equal(counts.transfers.added, 1);
+    const ids = db.prepare("SELECT id FROM transfers ORDER BY id").all().map((row) => row.id);
+    assert.deepEqual(ids, [1, 2]);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM subcategories WHERE id = 9").get().n, 1);
+  } finally { db.close(); }
+});
+
+test("browser export skips broken transfers and import keeps them in storage", () => {
+  const storage = browserStorage();
+  const orphan = { id: 5, fromAccountId: 123, toAccountId: 1, amount: 50, month: "2026-10" };
+  storage.setItem("accounts", JSON.stringify([{ id: 1, name: "Cash", type: "Cash", initialBalance: 0 }]));
+  storage.setItem("transfers", JSON.stringify([orphan]));
+  storage.setItem("expenses", JSON.stringify([
+    { id: 4, title: "Tea", amount: 10, month: "2026-10", accountId: 123 },
+  ]));
+  const service = loadService(null, storage);
+  const exported = service.collectPortableBackup();
+  assert.equal(exported.tables.transfers.length, 0);
+  assert.equal(exported.tables.expenses[0].accountId, null);
+  service.importPortableBackup({ tables: data() });
+  const transfers = JSON.parse(storage.getItem("transfers"));
+  assert.deepEqual(transfers.find((row) => row.id === 5), { ...orphan, createdAt: null, date: null, note: null });
+  assert.equal(transfers.length, 2);
+  assert.equal(JSON.parse(storage.getItem("expenses")).find((row) => row.id === 4).accountId, 123);
 });

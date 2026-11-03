@@ -56,7 +56,11 @@ Open **Settings > Import / Export Database**.
   accepts the new portable format, not a raw `.db` file or older Google Drive
   version 1 backup. Existing Drive backup/restore behavior is unchanged.
 - The file limit is 20 MiB and 100,000 rows. Missing tables, invalid field types,
-  duplicate IDs and broken references are rejected before writes.
+  duplicate IDs and broken references in the selected file are rejected before writes.
+- Export leaves out local transfers linked to deleted accounts and subcategories
+  of deleted categories, and exports transactions linked to deleted accounts as
+  unassigned. The export message lists what was skipped. These rows stay unchanged
+  in the app. Deleting an account now also deletes its transfers.
 - Reopen the other tabs after importing so they reload the merged data.
 
 Run the merge and SQLite/storage rollback tests with Node.js 22.13+:
@@ -68,8 +72,9 @@ node --test src\lib\backup\portableData.test.mjs
 ## Email a local monthly report
 
 In the Expenses tab, select a month and year, tap **Email Report**, and enter
-one recipient address. The app reads that month's local expenses and fuel logs,
-generates the existing PDF report, and opens an email draft with the PDF attached.
+one recipient address. The app reads that month's local expenses, fuel logs and
+income plus current account balances, generates the PDF report, and opens an
+email draft with the PDF attached.
 Review the draft and tap **Send** in your email app.
 
 - Requires `expo-mail-composer` and a configured email app on Android or iOS.
@@ -77,16 +82,35 @@ Review the draft and tap **Send** in your email app.
 - No MongoDB, Resend account, API key, or backend is needed for this action.
 - Generating a draft does not require server sync. Your email provider needs
   connectivity to deliver it; the email app may queue outgoing mail offline.
-- Income is not included. The report contains unmasked financial details;
+- The PDF (also used by **Export PDF**) has Expenses, Fuel, Income and Accounts
+  sections. Account balances are all-time (opening + income − expenses ±
+  transfers); fuel logs are not linked to accounts. **Export Excel** adds
+  **Income** and **Accounts** sheets after the **Expenses** sheet; Excel import
+  still reads only the first (Expenses) sheet.
+  Income is limited to the selected month; accounts include type, opening balance,
+  all-time income, spending and current balance. Income-only and accounts-only
+  reports can be exported too. Native email drafts and Resend attachments use the
+  same full PDF as **Export PDF**, not just summary totals.
+- The report contains unmasked financial details;
   verify the recipient and attachment before sending.
 - The app does not claim delivery, because opening/closing a composer cannot
   reliably confirm it. Canceling the draft sends nothing through this app.
-- On web, the same button downloads a PDF using `jspdf`, then displays an
-  **Open Email Draft** link with the recipient and summary. Attach the downloaded
+- On web, the same button downloads a PDF using `jspdf`, then attempts to open an
+  email draft with the recipient and summary. Attach the downloaded
   PDF manually. A configured browser/OS email handler is required to open the
   draft; otherwise compose in your webmail. No email is sent automatically.
 - The browser PDF uses built-in fonts, which may not render all non-Latin
   transaction text. Native PDF generation remains unchanged.
+
+Run the report regression tests with the existing dependencies and Node.js 22.13+:
+
+```powershell
+node --experimental-vm-modules --test src\lib\reports\monthlyReportData.test.mjs
+```
+
+These exercise the email button handlers, native PDF content, browser PDF and
+Excel output. Device printing, mail apps, file storage and network delivery are
+mocked; no real email is sent by the tests.
 
 ## Get a fresh project
 

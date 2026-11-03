@@ -9,7 +9,7 @@ import {
   accounts,
   transfers,
 } from "./schema";
-import { eq, desc, sum, asc, sql , and  , count} from "drizzle-orm";
+import { eq, desc, sum, asc, sql , and  , count, or } from "drizzle-orm";
 import { Platform } from "react-native";
 import { deleteLocalImage } from "../utils/imageManager";
 
@@ -221,7 +221,8 @@ export const deleteCategory = async (id, name) => {
     .set({ category: "General", subcategory: null })
     .where(eq(expenses.category, name));
 
-  // 2. Delete the category itself — subcategories cascade-delete via FK
+  // 2. Delete the category and its subcategories (FK cascades are not enabled)
+  await db.delete(subcategories).where(eq(subcategories.categoryId, id));
   await db.delete(categories).where(eq(categories.id, id));
 
   return { success: true };
@@ -1093,6 +1094,11 @@ export const deleteAccount = async (id) => {
       );
       localStorage.setItem("income", JSON.stringify(incomeList));
 
+      const transferList = JSON.parse(localStorage.getItem("transfers") || "[]").filter(
+        (t) => t.fromAccountId !== id && t.toAccountId !== id,
+      );
+      localStorage.setItem("transfers", JSON.stringify(transferList));
+
       let list = JSON.parse(localStorage.getItem("accounts") || "[]");
       list = list.filter((a) => a.id !== id);
       localStorage.setItem("accounts", JSON.stringify(list));
@@ -1109,6 +1115,10 @@ export const deleteAccount = async (id) => {
     .update(income)
     .set({ accountId: null })
     .where(eq(income.accountId, id));
+  // FK cascades are not enabled, so remove the account's transfers explicitly
+  await db
+    .delete(transfers)
+    .where(or(eq(transfers.fromAccountId, id), eq(transfers.toAccountId, id)));
   await db.delete(accounts).where(eq(accounts.id, id));
   return { success: true };
 };

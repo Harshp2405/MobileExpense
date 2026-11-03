@@ -27,11 +27,11 @@ import {
   getCategories,
   deleteExpense,
   getSubcategories,
-  getFuelLogsByMonth,
   getAccounts,
   updateExpense,
 } from "../../lib/db/queries";
 import { exportToPDF } from "../../lib/utils/pdfExporter";
+import { getMonthlyReportData, hasReportData } from "../../lib/reports/monthlyReportData";
 import { syncAll } from "../../lib/sync/syncManager";
 import { useColorScheme } from "nativewind";
 import ReceiptPicker from "@/components/ReceiptPicker";
@@ -353,29 +353,21 @@ export default function ExpensesScreen() {
     if (exportingRef.current) return;
     exportingRef.current = true;
     try {
-      const fuelLogs = await getFuelLogsByMonth(monthKey);
+      const report = await getMonthlyReportData({
+        monthKey,
+        monthName: MONTHS[selectedMonth],
+        year: selectedYear,
+        expenses,
+      });
 
-      if (expenses.length === 0 && fuelLogs.length === 0) {
+      if (!hasReportData(report)) {
         Alert.alert(
           "Nothing to Export",
-          "There are no expenses or fuel logs in this month.",
+          "There are no expenses, fuel logs or income in this month, and no accounts to export.",
         );
         return;
       }
-      const fuelTotal = fuelLogs.reduce(
-        (total, log) => total + Number(log.totalCost || 0),
-        0,
-      );
-      const combinedTotal = Number(totalSpent || 0) + fuelTotal;
-      const saved = await exportToPDF({
-        expenses,
-        fuelLogs,
-        monthName: MONTHS[selectedMonth],
-        year: selectedYear,
-        totalSpent: Number(totalSpent || 0),
-        fuelTotal,
-        combinedTotal,
-      });
+      const saved = await exportToPDF(report);
 
       Alert.alert(
         "PDF Saved",
@@ -420,18 +412,20 @@ const handleExportExcel = async () => {
     if (exportingRef.current) return;
     exportingRef.current = true;
     try {
-      if (expenses.length === 0) {
+      const report = await getMonthlyReportData({
+        monthKey,
+        monthName: MONTHS[selectedMonth],
+        year: selectedYear,
+        expenses,
+      });
+      if (report.expenses.length === 0 && report.income.length === 0 && report.accounts.length === 0) {
         Alert.alert(
-          "No Expenses",
-          "There are no expenses in this month to export to Excel.",
+          "Nothing to Export",
+          "There are no expenses or income in this month, and no accounts to export to Excel.",
         );
         return;
       }
-      const saved = await exportExpensesToExcel({
-        expenses,
-        monthName: MONTHS[selectedMonth],
-        year: selectedYear,
-      });
+      const saved = await exportExpensesToExcel(report);
 
       Alert.alert(
         "Excel Saved",

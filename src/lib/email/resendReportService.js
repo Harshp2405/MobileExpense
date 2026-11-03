@@ -64,7 +64,28 @@ export function buildReportHtml({
   expensesCount,
   fuelCount,
   methodTotals = {},
+  incomeTotal = 0,
+  incomeCount = 0,
+  accounts = [],
 }) {
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  const netSavings = Number(incomeTotal || 0) - Number(combinedTotal || 0);
+  const accountRows = accounts
+    .map(
+      (account) => `
+      <tr>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E5E7EB; color: #374151; font-size: 14px;">${escapeHtml(account.name)} <span style="color: #9CA3AF; font-size: 12px;">(${escapeHtml(account.type || "Cash")})</span></td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #E5E7EB; color: ${Number(account.balance) < 0 ? "#DC2626" : "#111827"}; font-weight: 600; text-align: right; font-size: 14px;">${formatINR(account.balance)}</td>
+      </tr>
+    `
+    )
+    .join("");
   const methodRows = Object.entries(methodTotals)
     .sort(([, a], [, b]) => b - a)
     .map(
@@ -83,7 +104,7 @@ export function buildReportHtml({
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Expense & Fuel Report - ${monthName} ${year}</title>
+    <title>Expense Report - ${monthName} ${year}</title>
   </head>
   <body style="margin: 0; padding: 24px; background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
     <div style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
@@ -116,7 +137,30 @@ export function buildReportHtml({
               <div style="font-size: 11px; color: #34D399; margin-top: 2px;">Combined</div>
             </td>
           </tr>
+          <tr>
+            <td style="background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #047857; margin-bottom: 4px;">Income</div>
+              <div style="font-size: 16px; font-weight: 800; color: #064E3B;">${formatINR(incomeTotal)}</div>
+              <div style="font-size: 11px; color: #34D399; margin-top: 2px;">${incomeCount} entries</div>
+            </td>
+            <td colspan="2" style="background-color: ${netSavings < 0 ? "#FEF2F2" : "#F0FDF4"}; border: 1px solid ${netSavings < 0 ? "#FECACA" : "#BBF7D0"}; border-radius: 12px; padding: 16px; text-align: center;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: ${netSavings < 0 ? "#B91C1C" : "#15803D"}; margin-bottom: 4px;">Net (Income − Spending)</div>
+              <div style="font-size: 16px; font-weight: 800; color: ${netSavings < 0 ? "#7F1D1D" : "#14532D"};">${formatINR(netSavings)}</div>
+            </td>
+          </tr>
         </table>
+
+        ${
+          accountRows
+            ? `
+          <!-- Account Balances -->
+          <h3 style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700; color: #111827;">Account Balances (all-time)</h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            ${accountRows}
+          </table>
+        `
+            : ""
+        }
 
         ${
           methodRows
@@ -136,7 +180,7 @@ export function buildReportHtml({
             📎 Detailed PDF Report Attached
           </p>
           <p style="margin: 4px 0 0 0; font-size: 12px; color: #6B7280;">
-            The attached document includes full category breakdowns, notes, and individual fuel fill-up efficiency stats.
+            The attached document includes expenses by category, fuel efficiency stats, income entries and account balances.
           </p>
         </div>
 
@@ -217,10 +261,13 @@ export async function sendReportViaResend({
     expensesCount: (reportData.expenses || []).length,
     fuelCount: (reportData.fuelLogs || []).length,
     methodTotals,
+    incomeTotal: reportData.incomeTotal,
+    incomeCount: (reportData.income || []).length,
+    accounts: reportData.accounts || [],
   });
 
-  const filename = `Expense_and_Fuel_Report_${monthName}_${year}.pdf`;
-  const subject = `Monthly Expense & Fuel Report - ${monthName} ${year}`;
+  const filename = `Expense_Report_${monthName}_${year}.pdf`;
+  const subject = `Monthly Expense Report - ${monthName} ${year}`;
 
   const payload = {
     to: cleanRecipient,

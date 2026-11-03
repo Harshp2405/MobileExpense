@@ -27,6 +27,12 @@ export const TABLES = {
 };
 
 export function normalizeTables(tables) {
+  const result = normalizeRows(tables);
+  checkReferences(result);
+  return result;
+}
+
+export function normalizeRows(tables) {
   if (!tables || typeof tables !== "object") throw new Error("Missing database tables");
   const result = {};
   let count = 0;
@@ -58,6 +64,10 @@ export function normalizeTables(tables) {
       return clean;
     });
   }
+  return result;
+}
+
+function checkReferences(result) {
   const accounts = new Set(result.accounts.map((row) => row.id));
   const categories = new Set(result.categories.map((row) => row.id));
   for (const row of result.subcategories) {
@@ -74,7 +84,48 @@ export function normalizeTables(tables) {
       throw new Error("Transfer has missing or identical accounts");
     }
   }
-  return result;
+}
+
+// Local data can reference deleted accounts/categories (SQLite FK cascades are
+// not enabled). Set those rows aside so export and merge can proceed, while
+// callers can still keep them in the app.
+export function splitBrokenReferences(tables) {
+  const accounts = new Set(tables.accounts.map((row) => row.id));
+  const categories = new Set(tables.categories.map((row) => row.id));
+  const broken = { transfers: [], subcategories: [], accountIds: { expenses: new Map(), income: new Map() } };
+  const clean = { ...tables };
+  clean.subcategories = tables.subcategories.filter((row) => {
+    if (categories.has(row.categoryId)) return true;
+    broken.subcategories.push(row);
+    return false;
+  });
+  clean.transfers = tables.transfers.filter((row) => {
+    if (accounts.has(row.fromAccountId) && accounts.has(row.toAccountId) &&
+        row.fromAccountId !== row.toAccountId) return true;
+    broken.transfers.push(row);
+    return false;
+  });
+  for (const table of ["expenses", "income"]) {
+    clean[table] = tables[table].map((row) => {
+      if (row.accountId === null || accounts.has(row.accountId)) return row;
+      broken.accountIds[table].set(row.id, row.accountId);
+      return { ...row, accountId: null };
+    });
+  }
+  const skipped = {
+    transfers: broken.transfers.length,
+    subcategories: broken.subcategories.length,
+    unassigned: broken.accountIds.expenses.size + broken.accountIds.income.size,
+  };
+  return { tables: clean, broken, skipped };
+}
+
+export function describeSkipped(skipped) {
+  const parts = [];
+  if (skipped.transfers) parts.push(`${skipped.transfers} transfer(s) linked to deleted accounts were left out`);
+  if (skipped.subcategories) parts.push(`${skipped.subcategories} subcategory(ies) of deleted categories were left out`);
+  if (skipped.unassigned) parts.push(`${skipped.unassigned} transaction(s) linked to deleted accounts were exported as unassigned`);
+  return parts.length ? ` Note: ${parts.join("; ")}.` : "";
 }
 
 export function parsePortableBackup(text) {
@@ -99,7 +150,7 @@ const signature = (row) => JSON.stringify(
 );
 
 export function mergePortableTables(currentTables, importedTables) {
-  const current = normalizeTables(currentTables);
+  const { tables: current, broken } = splitBrokenReferences(normalizeRows(currentTables));
   const incoming = normalizeTables(importedTables);
   const tables = {};
   const additions = {};
@@ -115,7 +166,8 @@ export function mergePortableTables(currentTables, importedTables) {
     counts[table] = { added: 0, skipped: 0 };
     const map = new Map();
     mappings[table] = map;
-    let nextId = Math.ceil(Math.max(0, ...rows.map((row) => row.id))) + 1;
+    let nextId = Math.ceil(Math.max(0, ...rows.map((row) => row.id),
+      ...(broken[table] || []).map((row) => row.id))) + 1;
     if (!Number.isSafeInteger(nextId)) throw new Error(`IDs exceed safe range in ${table}`);
     const naturalKey = (row) => {
       if (table === "categories" || table === "accounts") return nameKey(row.name);
@@ -176,5 +228,15 @@ export function mergePortableTables(currentTables, importedTables) {
     }
   }
   normalizeTables(tables);
-  return { tables, additions, counts };
+  // Put broken local rows back unchanged so a full write-back (web) keeps them.
+  const stored = { ...tables };
+  for (const table of ["transfers", "subcategories"]) stored[table] = [...tables[table], ...broken[table]];
+  for (const table of ["expenses", "income"]) {
+    const original = broken.accountIds[table];
+    if (original.size) {
+      stored[table] = tables[table].map((row) =>
+        original.has(row.id) ? { ...row, accountId: original.get(row.id) } : row);
+    }
+  }
+  return { tables: stored, additions, counts };
 }

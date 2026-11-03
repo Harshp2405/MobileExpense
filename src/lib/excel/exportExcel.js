@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { saveExportFile, MIME_TYPES } from "../utils/publicStorage";
+import { accountNameFor } from "../reports/monthlyReportData";
 
 // export const exportExpensesToExcel = async ({ expenses, monthName, year }) => {
 //   const rows = expenses.map((item) => ({
@@ -40,7 +41,13 @@ import { saveExportFile, MIME_TYPES } from "../utils/publicStorage";
 //   return fileUri;
 // };
 
-export const exportExpensesToExcel = async ({ expenses, monthName, year }) => {
+export const exportExpensesToExcel = async ({
+  expenses,
+  income = [],
+  accounts = [],
+  monthName,
+  year,
+}) => {
   const rows = expenses.map((item) => ({
     title: item.title || "",
     amount: Number(item.amount || 0),
@@ -56,7 +63,45 @@ export const exportExpensesToExcel = async ({ expenses, monthName, year }) => {
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
+  // Keep "Expenses" first: the Excel importer reads only the first sheet.
   XLSX.utils.book_append_sheet(workbook, worksheet, "Expenses");
+
+  const incomeRows = income.map((item) => ({
+    title: item.title || "",
+    amount: Number(item.amount || 0),
+    source: item.source || "Other",
+    account: accountNameFor(accounts, item.accountId),
+    date: item.date || "",
+    description: item.description || "",
+    month: item.month || "",
+  }));
+  XLSX.utils.book_append_sheet(
+    workbook,
+    incomeRows.length
+      ? XLSX.utils.json_to_sheet(incomeRows)
+      : XLSX.utils.json_to_sheet([], {
+          header: ["title", "amount", "source", "account", "date", "description", "month"],
+        }),
+    "Income",
+  );
+
+  const accountRows = accounts.map((account) => ({
+    name: account.name || "",
+    type: account.type || "Cash",
+    openingBalance: Number(account.initialBalance || 0),
+    income: Number(account.earned || 0),
+    spent: Number(account.spent || 0),
+    balance: Number(account.balance || 0),
+  }));
+  XLSX.utils.book_append_sheet(
+    workbook,
+    accountRows.length
+      ? XLSX.utils.json_to_sheet(accountRows)
+      : XLSX.utils.json_to_sheet([], {
+          header: ["name", "type", "openingBalance", "income", "spent", "balance"],
+        }),
+    "Accounts",
+  );
 
   const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
 
@@ -66,4 +111,3 @@ export const exportExpensesToExcel = async ({ expenses, monthName, year }) => {
     mimeType: MIME_TYPES.xlsx,
   });
 };
-

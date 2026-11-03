@@ -14,7 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as MailComposer from "expo-mail-composer";
 import * as FileSystem from "expo-file-system/legacy";
-import { getExpensesByMonth, getFuelLogsByMonth } from "../lib/db/queries";
+import { getMonthlyReportData, hasReportData } from "../lib/reports/monthlyReportData";
 import { createReportPDF } from "../lib/utils/pdfExporter";
 import { sendReportViaResend } from "../lib/email/resendReportService";
 import * as storage from "../lib/utils/storage";
@@ -58,39 +58,16 @@ export default function EmailReportButton({ monthKey, monthName, year }) {
     setSuccessInfo(null);
   };
 
-  /**
-   * Helper: Gather expense and fuel records for the month from local SQLite
-   */
   const gatherReportData = async () => {
-    const [expenses, fuelLogs] = await Promise.all([
-      getExpensesByMonth(monthKey),
-      getFuelLogsByMonth(monthKey),
-    ]);
+    const report = await getMonthlyReportData({ monthKey, monthName, year });
 
-    if (expenses.length === 0 && fuelLogs.length === 0) {
+    if (!hasReportData(report)) {
       throw new Error(
-        `No expenses or fuel records found for ${monthName} ${year}.`
+        `No expenses, fuel or income records found for ${monthName} ${year}, and no accounts to export.`
       );
     }
 
-    const totalSpent = expenses.reduce(
-      (sum, item) => sum + Number(item.amount || 0),
-      0
-    );
-    const fuelTotal = fuelLogs.reduce(
-      (sum, item) => sum + Number(item.totalCost || 0),
-      0
-    );
-
-    return {
-      expenses,
-      fuelLogs,
-      monthName,
-      year,
-      totalSpent,
-      fuelTotal,
-      combinedTotal: totalSpent + fuelTotal,
-    };
+    return report;
   };
 
   /**
@@ -117,14 +94,17 @@ export default function EmailReportButton({ monthKey, monthName, year }) {
       setStatusMessage("Reading local records...");
       const report = await gatherReportData();
 
-      const subject = `Expense and Fuel Report - ${monthName} ${year}`;
+      const subject = `Expense Report - ${monthName} ${year}`;
       const body = [
-        `Expense and fuel report for ${monthName} ${year}.`,
+        `Expense, fuel and income report for ${monthName} ${year}.`,
         `Expenses: INR ${report.totalSpent.toFixed(2)} (${report.expenses.length} records)`,
         `Fuel Total: INR ${report.fuelTotal.toFixed(2)} (${report.fuelLogs.length} logs)`,
-        `Combined Total: INR ${report.combinedTotal.toFixed(2)}`,
+        `Combined Spending: INR ${report.combinedTotal.toFixed(2)}`,
+        `Income: INR ${report.incomeTotal.toFixed(2)} (${report.income.length} entries)`,
+        `Net: INR ${report.netSavings.toFixed(2)}`,
+        `Account balances (all-time): INR ${report.totalBalance.toFixed(2)} across ${report.accounts.length} account(s)`,
         "",
-        "Attached PDF contains complete breakdown, categories, and fuel efficiency stats.",
+        "Attached PDF contains the complete breakdown: expenses, fuel, income and account balances.",
         "Generated directly from local device storage.",
       ].join("\n");
 
@@ -212,23 +192,8 @@ export default function EmailReportButton({ monthKey, monthName, year }) {
       setStatusMessage("Generating PDF report...");
       let pdfResult;
       if (Platform.OS === "web") {
-        const { jsPDF } = await import("jspdf");
-        const doc = new jsPDF();
-        doc.setFontSize(14);
-        doc.text(
-          `Monthly Expense & Fuel Report - ${monthName} ${year}`,
-          15,
-          20
-        );
-        doc.setFontSize(11);
-        doc.text(`Expenses: INR ${report.totalSpent.toFixed(2)}`, 15, 30);
-        doc.text(`Fuel: INR ${report.fuelTotal.toFixed(2)}`, 15, 38);
-        doc.text(
-          `Combined Total: INR ${report.combinedTotal.toFixed(2)}`,
-          15,
-          46
-        );
-        pdfResult = doc;
+        const { createWebReportPDF } = await import("../lib/utils/downloadEmailReport");
+        pdfResult = await createWebReportPDF(report);
       } else {
         const { uri } = await createReportPDF(report);
         tempPdfUri = uri;
