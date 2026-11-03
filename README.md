@@ -2,6 +2,13 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+
+# 🎉 Your deployment is ready
+
+Dashboard       https://expo.dev/projects/880b205f-de76-42f0-9dbe-4ff35823ad1c/hosting/deployments
+Deployment URL  https://harsh-1224-expensetracker--rvxaemtcwm.expo.app
+Alias URL       https://harsh-1224-expensetracker--expense-web-app.expo.app
+
 ## Get started
 
 1. Install dependencies
