@@ -40,6 +40,21 @@ Open **Settings > Import / Export Database**.
   tables: expenses, categories, subcategories, budgets, fuel logs, income,
   accounts and transfers. Android uses the configured export folder, iOS offers
   file sharing, and web requests a browser download.
+- **Export Excel Backup** saves the same all-month database data as an `.xlsx`
+  workbook. **Import Excel** accepts that workbook, monthly report workbooks,
+  the Excel sample template, and expense CSV files. The Expenses tab also offers
+  Excel import. Backups have a `Database Format` sheet and one sheet for each
+  database table; keep the sheets, column headers, IDs and relationships intact.
+- Excel backups use the same validation, merge, row/file limits and rollback
+  protections as portable JSON backups. Imported data is merged, never replaced;
+  counts of added and skipped records are displayed.
+- Older monthly reports and CSV files may lack transaction identities, account
+  links, creation times, or history. Matching uses the columns present and can
+  skip distinct similar records; account balances may differ when history is
+  missing. Report account balance/income/spending columns are informational,
+  not imported transactions. An account referenced by name must be included in
+  the Accounts sheet. Unknown populated sheets/columns, formulas and invalid
+  rows are rejected rather than silently ignored.
 - **Import Database** lets you select that JSON file, review table counts and
   confirm a merge. Export a safety copy first and close other browser tabs using
   the app before importing.
@@ -91,9 +106,9 @@ Review the draft and tap **Send** in your email app.
   connectivity to deliver it; the email app may queue outgoing mail offline.
 - The PDF (also used by **Export PDF**) has Expenses, Fuel, Income and Accounts
   sections. Account balances are all-time (opening + income − expenses ±
-  transfers); fuel logs are not linked to accounts. **Export Excel** adds
-  **Income** and **Accounts** sheets after the **Expenses** sheet; Excel import
-  still reads only the first (Expenses) sheet.
+  transfers); fuel logs are not linked to accounts. **Export Excel** creates
+  **Expenses**, **Fuel**, **Income**, and **Accounts** sheets for the selected
+  month. Fuel-only reports can also be exported.
   Income is limited to the selected month; accounts include type, opening balance,
   all-time income, spending and current balance. Income-only and accounts-only
   reports can be exported too. Native email drafts and Resend attachments use the
@@ -109,7 +124,7 @@ Review the draft and tap **Send** in your email app.
 - The browser PDF uses built-in fonts, which may not render all non-Latin
   transaction text. Native PDF generation remains unchanged.
 
-Run the report regression tests with the existing dependencies and Node.js 22.13+:
+Run the report and Excel regression tests with the existing dependencies and Node.js 22.13+:
 
 ```powershell
 node --experimental-vm-modules --test src\lib\reports\monthlyReportData.test.mjs

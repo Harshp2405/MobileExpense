@@ -149,7 +149,7 @@ const signature = (row) => JSON.stringify(
   Object.entries(row).filter(([key]) => !["id", "remoteId", "syncStatus"].includes(key)),
 );
 
-export function mergePortableTables(currentTables, importedTables) {
+export function mergePortableTables(currentTables, importedTables, { legacyFields = {} } = {}) {
   const { tables: current, broken } = splitBrokenReferences(normalizeRows(currentTables));
   const incoming = normalizeTables(importedTables);
   const tables = {};
@@ -178,11 +178,22 @@ export function mergePortableTables(currentTables, importedTables) {
     const natural = new Map(rows.map((row) => [naturalKey(row), row]));
     const remotes = new Map(rows.filter((row) => row.remoteId).map((row) => [row.remoteId, row]));
     const signatures = new Map();
+    const fields = legacyFields[table];
+    const legacySignature = (row) => JSON.stringify(fields.map((field) => {
+      const value = row[field];
+      return value === "" || value == null ? null : value;
+    }));
+    const legacySignatures = new Map();
     // Consume matching existing rows once, preserving legitimate identical entries.
     for (const row of rows) {
       const key = signature(row);
       if (!signatures.has(key)) signatures.set(key, []);
       signatures.get(key).push(row);
+      if (fields) {
+        const legacyKey = legacySignature(row);
+        if (!legacySignatures.has(legacyKey)) legacySignatures.set(legacyKey, []);
+        legacySignatures.get(legacyKey).push(row);
+      }
     }
     const consumed = new Set();
     for (const original of incoming[table]) {
@@ -202,7 +213,9 @@ export function mergePortableTables(currentTables, importedTables) {
       const key = naturalKey(row);
       const match = key !== null ? natural.get(key)
         : (row.remoteId && remotes.get(row.remoteId)) ||
-          signatures.get(signature(row))?.find((item) => !consumed.has(item.id));
+          (fields
+            ? legacySignatures.get(legacySignature(row))
+            : signatures.get(signature(row)))?.find((item) => !consumed.has(item.id));
       if (match) {
         map.set(original.id, match.id);
         consumed.add(match.id);

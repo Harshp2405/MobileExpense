@@ -38,7 +38,7 @@ import ReceiptPicker from "@/components/ReceiptPicker";
 import EmailReportButton from "@/components/EmailReportButton";
 import * as DocumentPicker from "expo-document-picker";
 import { exportExpensesToExcel } from "../../lib/excel/exportExcel";
-import { importExpensesFromFile } from "../../lib/excel/importExcel";
+import { readExcelAsset, importExcelData, describeExcelCounts } from "../../lib/excel/importExcel";
 import { downloadSampleExcelTemplate } from "../../lib/excel/sampleImportTemplate";
 import PrivacyText from "@/components/PrivacyText";
 import { usePrivacyMode } from "../../lib/privacy/usePrivacyMode";
@@ -70,6 +70,11 @@ const MONTHS = [
 // Generate years from 2010 to 2110
 
 const YEARS = Array.from({ length: 101 }, (_, i) => 2010 + i);
+
+const showExcelAlert = (title, message) => {
+  if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
+  else Alert.alert(title, message);
+};
 
 const formatExpenseDate = (value = new Date()) => {
   const day = String(value.getDate()).padStart(2, "0");
@@ -418,16 +423,16 @@ const handleExportExcel = async () => {
         year: selectedYear,
         expenses,
       });
-      if (report.expenses.length === 0 && report.income.length === 0 && report.accounts.length === 0) {
-        Alert.alert(
+      if (!hasReportData(report)) {
+        showExcelAlert(
           "Nothing to Export",
-          "There are no expenses or income in this month, and no accounts to export to Excel.",
+          "There are no expenses, fuel logs or income in this month, and no accounts to export to Excel.",
         );
         return;
       }
       const saved = await exportExpensesToExcel(report);
 
-      Alert.alert(
+      showExcelAlert(
         "Excel Saved",
         `Saved to ${saved.location} as:\n\n${saved.fileName}`,
       );
@@ -437,13 +442,15 @@ const handleExportExcel = async () => {
         return;
       }
       console.error("Failed to export Excel report", error);
-      Alert.alert("Error", "Failed to export Excel report.");
+      showExcelAlert("Error", "Failed to export Excel report.");
     } finally {
       exportingRef.current = false;
     }
   };
 
   const handleImportExcel = async () => {
+    if (exportingRef.current) return;
+    exportingRef.current = true;
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: [
@@ -457,15 +464,29 @@ const handleExportExcel = async () => {
       const file = result.assets?.[0];
       if (!file) return;
 
-      const fileType = file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv";
-      const response = await fetch(file.uri);
-      const arrayBuffer = await response.arrayBuffer();
-      const importedCount = await importExpensesFromFile(arrayBuffer, fileType);
-
-      Alert.alert("Import successful", `${importedCount} expenses imported.`);
-      await loadData();
+      const parsed = await readExcelAsset(file);
+      const prompt = `Merge ${parsed.kind === "database" ? "this database backup" : "this report"}? Existing records win conflicts. Receipt files are not included. ${parsed.warning}`;
+      const merge = async () => {
+        try {
+          const counts = importExcelData(parsed);
+          await loadData();
+          showExcelAlert("Import successful", `${describeExcelCounts(counts)}. Reopen other screens to refresh.`);
+        } catch (error) {
+          console.error("Excel import failed", error);
+          showExcelAlert("Import failed", error.message || "Unable to import file");
+        }
+      };
+      const confirmed = Platform.OS === "web" ? window.confirm(prompt) :
+        await new Promise((resolve) => Alert.alert("Import Excel", prompt, [
+          { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+          { text: "Merge", onPress: () => resolve(true) },
+        ], { cancelable: false }));
+      if (confirmed) await merge();
     } catch (error) {
-      Alert.alert("Import failed", error.message || "Unable to import file");
+      console.error("Excel import failed", error);
+      showExcelAlert("Import failed", error.message || "Unable to import file");
+    } finally {
+      exportingRef.current = false;
     }
   };
 
@@ -474,7 +495,7 @@ const handleExportExcel = async () => {
       await downloadSampleExcelTemplate();
     } catch (error) {
       console.error("Failed to download sample file", error);
-      Alert.alert("Failed", "Could not download sample file");
+      showExcelAlert("Failed", "Could not download sample file");
     }
   };
 
@@ -690,14 +711,16 @@ const handleExportExcel = async () => {
                       className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
                     >
                       <Ionicons
-                        name="download-outline"
+                        name="cloud-upload-outline"
                         size={18}
                         color="#2563EB"
                       />
                     </TouchableOpacity>
                     {showTooltip && tooltipText === "Export Excel" && (
                       <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
-                        <Text className="text-[10px] text-white">Export Excel</Text>
+                        <Text className="text-[10px] text-white">
+                          Export Excel
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -711,14 +734,16 @@ const handleExportExcel = async () => {
                       className="bg-gray-100 dark:bg-zinc-800 w-10 h-10 rounded-full items-center justify-center border border-gray-200 dark:border-zinc-700 shadow-sm"
                     >
                       <Ionicons
-                        name="cloud-upload-outline"
+                        name="download-outline"
                         size={18}
                         color="#2563EB"
                       />
                     </TouchableOpacity>
                     {showTooltip && tooltipText === "Import Excel" && (
                       <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
-                        <Text className="text-[10px] text-white">Import Excel</Text>
+                        <Text className="text-[10px] text-white">
+                          Import Excel
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -738,7 +763,9 @@ const handleExportExcel = async () => {
                     </TouchableOpacity>
                     {showTooltip && tooltipText === "Export PDF" && (
                       <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
-                        <Text className="text-[10px] text-white">Export PDF</Text>
+                        <Text className="text-[10px] text-white">
+                          Export PDF
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -754,7 +781,9 @@ const handleExportExcel = async () => {
                     </TouchableOpacity>
                     {showTooltip && tooltipText === "Add Expense" && (
                       <View className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded-md">
-                        <Text className="text-[10px] text-white">Add Expense</Text>
+                        <Text className="text-[10px] text-white">
+                          Add Expense
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -782,7 +811,7 @@ const handleExportExcel = async () => {
               ref={(ref) => {
                 swipeableRefs.current[item.id] = ref;
               }}
-              renderLeftActions={()=> renderLeftActions(item)}
+              renderLeftActions={() => renderLeftActions(item)}
             >
               <TouchableOpacity
                 //onLongPress={() => handleDelete(item.id)}
@@ -822,7 +851,7 @@ const handleExportExcel = async () => {
                     </Text>
                   </View>
                 </View>
-{/* 
+                {/* 
                 <Text className="text-lg font-bold text-gray-900 dark:text-gray-100">
                   ₹{item.amount.toFixed(2)}
                 </Text>
@@ -893,7 +922,11 @@ const handleExportExcel = async () => {
                   onPress={handleSmartPaste}
                   className="self-end flex-row items-center gap-1 mb-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/30"
                 >
-                  <Ionicons name="clipboard-outline" size={16} color="#2563EB" />
+                  <Ionicons
+                    name="clipboard-outline"
+                    size={16}
+                    color="#2563EB"
+                  />
                   <Text className="text-xs font-bold text-blue-600 dark:text-blue-400">
                     Smart Paste
                   </Text>
@@ -1083,7 +1116,13 @@ const handleExportExcel = async () => {
                   className={`rounded-2xl py-4 items-center ${saving ? "bg-blue-300" : "bg-blue-600"}`}
                 >
                   <Text className="text-white font-bold text-base">
-                    {saving ? (editingExpenseId != null ? "Updating..." : "Saving...") : (editingExpenseId != null ? "Update" : "Save")}
+                    {saving
+                      ? editingExpenseId != null
+                        ? "Updating..."
+                        : "Saving..."
+                      : editingExpenseId != null
+                        ? "Update"
+                        : "Save"}
                   </Text>
                 </TouchableOpacity>
                 <View className="h-8" />

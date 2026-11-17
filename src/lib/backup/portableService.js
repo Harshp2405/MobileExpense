@@ -74,6 +74,10 @@ export function collectPortableBackup() {
   return buildPortableBackup().backup;
 }
 
+export function collectPortableBackupWithWarnings() {
+  return buildPortableBackup();
+}
+
 export async function exportPortableFile() {
   const { backup, skipped } = buildPortableBackup();
   const note = describeSkipped(skipped);
@@ -131,11 +135,11 @@ export async function pickPortableBackup() {
   return parsePortableBackup(text);
 }
 
-export function importPortableBackup(backup) {
+export function importPortableBackup(backup, options = {}) {
   const imported = normalizeTables(backup.tables);
   let merged;
   if (isWebStorage()) {
-    merged = mergePortableTables(readTables(), imported);
+    merged = mergePortableTables(readTables(), imported, options);
     const previous = {};
     const next = {};
     for (const [table, key] of Object.entries(storageKeys)) {
@@ -171,7 +175,7 @@ export function importPortableBackup(backup) {
   } else {
     if (!expoDb) throw new Error("Database is not ready");
     expoDb.withTransactionSync(() => {
-      merged = mergePortableTables(readTables(), imported);
+      merged = mergePortableTables(readTables(), imported, options);
       for (const [table, rows] of Object.entries(merged.additions)) {
         const fields = Object.keys(TABLES[table]);
         const statement = `INSERT INTO "${sqlTable(table)}" (${fields.map((key) => `"${sqlColumn(key)}"`).join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`;

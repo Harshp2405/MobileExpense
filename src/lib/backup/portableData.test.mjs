@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
+import * as XLSX from "xlsx";
 
 const source = await readFile(new URL("./portableData.js", import.meta.url), "utf8");
 const { TABLES, normalizeTables, normalizeRows, parsePortableBackup, mergePortableTables,
@@ -21,6 +22,90 @@ const data = () => ({
   budgets: [{ id: 1, month: "2026-10", amount: 300 }],
   fuelLogs: [{ id: 1, startKm: 100, litres: 2, pricePerLitre: 100, totalCost: 200, date: "30/10/2026", month: "2026-10" }],
   transfers: [{ id: 1, fromAccountId: 2, toAccountId: 1, amount: 50, month: "2026-10" }],
+});
+
+const workbookSource = (await readFile(new URL("../excel/workbookData.js", import.meta.url), "utf8"))
+  .replace(/^import[\s\S]*?from\s+["'][^"']+["'];\r?\n/gm, "")
+  .replace(/export function /g, "function ");
+const { createDatabaseWorkbook, parseExcelFile } = new Function(
+  "XLSX", "TABLES", "normalizeTables",
+  `${workbookSource}\nreturn { createDatabaseWorkbook, parseExcelFile };`,
+)(XLSX, TABLES, normalizeTables);
+const encode = (workbook) => XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+
+test("Excel backup preserves all tables, relationships, nulls and empty strings", () => {
+  const input = data();
+  input.expenses[0].description = "";
+  input.expenses[0].imageUri = "file:///receipt.jpg";
+  input.fuelLogs[0].odometerKm = null;
+  input.income[0].remoteId = "remote-income";
+  input.income[0].createdAt = "2026-10-30T00:00:00Z";
+  const parsed = parseExcelFile(encode(createDatabaseWorkbook(input)));
+  assert.equal(parsed.kind, "database");
+  assert.deepEqual(parsed.tables, normalizeTables(input));
+});
+
+test("Excel backup rejects missing sheets, invalid references, formulas and oversized files", () => {
+  const workbook = createDatabaseWorkbook(data());
+  delete workbook.Sheets.Transfers;
+  workbook.SheetNames = workbook.SheetNames.filter((name) => name !== "Transfers");
+  assert.throws(() => parseExcelFile(encode(workbook)), /Missing sheet: Transfers/);
+  const broken = createDatabaseWorkbook(data());
+  const col = Object.keys(TABLES.income).indexOf("accountId");
+  broken.Sheets.Income[XLSX.utils.encode_cell({ r: 1, c: col })].v = 999;
+  assert.throws(() => parseExcelFile(encode(broken)), /missing account/);
+  const formula = createDatabaseWorkbook(data());
+  formula.Sheets.Expenses.B2 = { t: "n", v: 1, f: "1+0" };
+  assert.throws(() => parseExcelFile(encode(formula)), /formulas/);
+  assert.throws(() => parseExcelFile(new Uint8Array(20 * 1024 * 1024 + 1)), /20 MiB/);
+});
+
+test("legacy multi-sheet reports merge by available data and preserve duplicate multiplicity", () => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { title: "Meal", amount: 25, category: "Food", date: "30/10/2026", month: "2026-10" },
+    { title: "Meal", amount: 25, category: "Food", date: "30/10/2026", month: "2026-10" },
+  ]), "Expenses");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { startKm: 100, litres: 2, pricePerLitre: 100, date: "30/10/2026", month: "2026-10" },
+  ]), "Fuel");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { title: "Salary", amount: 200, account: "Bank", month: "2026-10" },
+  ]), "Income");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { name: "Bank", type: "Bank", openingBalance: 500, balance: 700 },
+  ]), "Accounts");
+  const parsed = parseExcelFile(encode(wb));
+  assert.match(parsed.warning, /distinct similar/);
+  const first = mergePortableTables(empty(), parsed.tables, parsed.options);
+  assert.equal(first.tables.expenses.length, 2);
+  assert.equal(first.tables.fuelLogs[0].totalCost, 200);
+  assert.equal(first.tables.income[0].accountId, first.tables.accounts[0].id);
+  const second = mergePortableTables(first.tables, parsed.tables, parsed.options);
+  assert.equal(second.counts.expenses.skipped, 2);
+  assert.equal(second.counts.fuelLogs.skipped, 1);
+  assert.equal(second.counts.income.skipped, 1);
+});
+
+test("legacy CSV handles normalized headers, UTF-8 bytes and invalid rows", () => {
+  const content = Buffer.from("Title,Amount,Category,Date,Month,Description\nCafé,10,Food,30/10/2026,2026-10,Snack\n", "utf8");
+  const parsed = parseExcelFile(content, "csv");
+  assert.equal(parsed.tables.expenses[0].title, "Café");
+  assert.equal(parsed.tables.expenses[0].description, "Snack");
+  const iso = parseExcelFile(Buffer.from("Title,Amount,Date\nMeal,1,2026-10-30\n"), "csv");
+  assert.equal(iso.tables.expenses[0].date, "2026-10-30");
+  assert.equal(iso.tables.expenses[0].month, "2026-10");
+  assert.throws(() => parseExcelFile(Buffer.from("Title,Amount,Month\nMeal,-1,2026-10\n"), "csv"), /Expenses row 2/);
+  assert.throws(() => parseExcelFile(Buffer.from("Title,Amount,Month,Unexpected\nMeal,1,2026-10,x\n"), "csv"), /unsupported column/);
+  assert.throws(() => parseExcelFile(Buffer.from("Title,Amount,Month,Account\nMeal,1,2026-10,Bank\n"), "csv"), /missing from the Accounts sheet/);
+});
+
+test("legacy single-sheet Excel files accept an arbitrary worksheet name", () => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+    { title: "Meal", amount: 25, category: "Food", month: "2026-10" },
+  ]), "Sheet1");
+  assert.equal(parseExcelFile(encode(wb)).tables.expenses[0].title, "Meal");
 });
 
 test("all eight tables round-trip, without mutating input", () => {
@@ -171,14 +256,15 @@ test("service writes real SQLite tables with remapped foreign keys and exports e
   const { db, adapter } = sqliteAdapter();
   try {
     const service = loadService(adapter);
-    service.importPortableBackup({ tables: data() });
+    const parsed = parseExcelFile(encode(createDatabaseWorkbook(data())));
+    service.importPortableBackup(parsed, parsed.options);
     const exported = service.collectPortableBackup();
     assert.equal(exported.version, 2);
     assert.equal(exported.tables.fuelLogs.length, 1);
     assert.equal(exported.tables.subcategories.length, 1);
     assert.equal(exported.tables.accounts.length, 2);
     assert.equal(exported.tables.transfers.length, 1);
-    const second = service.importPortableBackup(exported);
+    const second = service.importPortableBackup(parsed, parsed.options);
     for (const count of Object.values(second)) assert.equal(count.added, 0);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM expenses").get().n, 1);
   } finally { db.close(); }
@@ -193,7 +279,8 @@ test("SQLite insert failure rolls back every table", () => {
     return run(...args);
   };
   try {
-    assert.throws(() => loadService(adapter).importPortableBackup({ tables: data() }), /disk failure/);
+    const parsed = parseExcelFile(encode(createDatabaseWorkbook(data())));
+    assert.throws(() => loadService(adapter).importPortableBackup(parsed, parsed.options), /disk failure/);
     for (const table of Object.keys(TABLES)) {
       const name = table === "fuelLogs" ? "fuel_logs" : table;
       assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n, 0);
@@ -236,7 +323,8 @@ test("browser quota failure restores original values and clears journal", () => 
     set(key, value);
   };
   const service = loadService(null, storage);
-  assert.throws(() => service.importPortableBackup({ tables: data() }), /Quota exceeded/);
+  const parsed = parseExcelFile(encode(createDatabaseWorkbook(data())));
+  assert.throws(() => service.importPortableBackup(parsed, parsed.options), /Quota exceeded/);
   assert.equal(storage.getItem("expenses"), "[]");
   assert.equal(storage.getItem("accounts"), null);
   assert.equal(storage.getItem("portable_import_rollback"), null);

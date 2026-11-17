@@ -1,88 +1,26 @@
-import * as XLSX from "xlsx";
-import { validateExpenseRow } from "./validators";
-import { addExpense } from "../db/queries";
+import { importPortableBackup } from "../backup/portableService";
+import { parseExcelFile } from "./workbookData";
 
-export const importExpensesFromFile = async (fileContent, fileType = "csv") => {
-  let workbook;
-
-  if (fileType === "xlsx") {
-    workbook = XLSX.read(fileContent, { type: "array" });
-  } else {
-    workbook = XLSX.read(fileContent, { type: "string" });
+export async function readExcelAsset(asset) {
+  if (!asset?.name || !/\.(xlsx|csv)$/i.test(asset.name)) {
+    throw new Error("Choose an .xlsx or .csv file");
   }
-
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-  if (!rawRows.length) {
-    throw new Error("No data found in the file");
+  if (asset.size > 20 * 1024 * 1024) throw new Error("Choose a file smaller than 20 MiB");
+  let bytes;
+  if (asset.file) bytes = await asset.file.arrayBuffer();
+  else {
+    const response = await fetch(asset.uri);
+    if (!response.ok) throw new Error("Could not read the selected file");
+    bytes = await response.arrayBuffer();
   }
+  return parseExcelFile(bytes, asset.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv");
+}
 
-  const normalizedHeaders = Object.keys(rawRows[0]).map((key) =>
-    key.trim().toLowerCase().replace(/\s+/g, "_"),
-  );
+export function importExcelData(parsed) {
+  return importPortableBackup({ tables: parsed.tables }, parsed.options);
+}
 
-  const expected = [
-    "title",
-    "amount",
-    "category",
-    "subcategory",
-    "method",
-    "date",
-    "description",
-    "month",
-  ];
-
-  const missing = expected.filter((key) => !normalizedHeaders.includes(key));
-  if (missing.length) {
-    throw new Error(`Missing required columns: ${missing.join(", ")}`);
-  }
-
-  const validRows = [];
-  const invalidRows = [];
-
-  rawRows.forEach((row, index) => {
-    const normalizedRow = {
-      title: row.title || row.Title || "",
-      amount: row.amount || row.Amount || "",
-      category: row.category || row.Category || "",
-      subcategory: row.subcategory || row.Subcategory || "",
-      method: row.method || row.Method || "Cash",
-      date: row.date || row.Date || "",
-      description: row.description || row.Description || "",
-      month: row.month || row.Month || "",
-    };
-
-    const errors = validateExpenseRow(normalizedRow);
-    if (errors.length) {
-      invalidRows.push({ row: index + 2, errors });
-      return;
-    }
-
-    validRows.push({
-      title: normalizedRow.title.trim(),
-      amount: Number(normalizedRow.amount),
-      category: normalizedRow.category.trim(),
-      subcategory: normalizedRow.subcategory?.trim() || null,
-      method: normalizedRow.method || "Cash",
-      date: normalizedRow.date,
-      description: normalizedRow.description?.trim() || "",
-      month: normalizedRow.month,
-    });
-  });
-
-  if (invalidRows.length) {
-    throw new Error(
-      `Invalid rows found: ${invalidRows
-        .map((item) => `Row ${item.row}: ${item.errors.join(", ")}`)
-        .join(" | ")}`,
-    );
-  }
-
-  for (const row of validRows) {
-    await addExpense(row);
-  }
-
-  return validRows.length;
-};
+export function describeExcelCounts(counts) {
+  return Object.entries(counts).map(([table, count]) =>
+    `${table}: ${count.added} added, ${count.skipped} skipped`).join("; ");
+}

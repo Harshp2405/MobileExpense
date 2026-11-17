@@ -34,7 +34,7 @@ const fixture = () => ({
 // Load production ES modules and JSX, replacing only device/network boundaries.
 // The component's handlers, report loader, PDF content and XLSX encoder all run.
 function harness(os = "android", data = fixture()) {
-  const captured = { prints: [], saves: [], drafts: [], requests: [], reads: [], deleted: [], downloads: [], links: [] };
+  const captured = { prints: [], saves: [], drafts: [], requests: [], reads: [], deleted: [], downloads: [], links: [], excelDownloads: [] };
   const slots = [];
   let hookIndex = 0;
   const react = {
@@ -96,13 +96,31 @@ function harness(os = "android", data = fixture()) {
       MIME_TYPES: { pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
       saveExportFile: async (options) => { captured.saves.push(options); return { ...options, location: "Test" }; },
     },
+    [path.join(src, "lib", "backup", "portableService.js")]: {
+      collectPortableBackupWithWarnings: () => captured.backupResult,
+      importPortableBackup: (backup, options) => {
+        captured.imported = { backup, options };
+        return { expenses: { added: backup.tables.expenses.length, skipped: 0 } };
+      },
+    },
     [path.join(src, "lib", "utils", "storage.js")]: {
       getItem: async () => null,
       setItem: async () => {},
     },
   }));
   const context = vm.createContext({
-    console, process: { env: {} }, __DEV__: true,
+    console, Blob, process: { env: {} }, __DEV__: true,
+    URL: {
+      createObjectURL(blob) { captured.excelBlob = blob; return "blob:excel"; },
+      revokeObjectURL() {},
+    },
+    document: {
+      body: { appendChild() {} },
+      createElement() {
+        return { click() { captured.excelDownloads.push(this.download); }, remove() {} };
+      },
+    },
+    setTimeout(callback) { callback(); },
     fetch: async (url, options) => {
       captured.requests.push({ url, payload: JSON.parse(options.body) });
       return { ok: true, headers: { get: () => "application/json" }, json: async () => ({ success: true, id: "test-email" }) };
@@ -209,8 +227,8 @@ test("monthly report includes selected income and all-time account balances", as
   assert.equal(report.accounts[1].earned, 3200);
 });
 
-test("income-only and accounts-only reports are exportable; empty reports are not", async () => {
-  for (const kind of ["income", "accounts", "empty"]) {
+test("income-only, fuel-only and accounts-only reports are exportable; empty reports are not", async () => {
+  for (const kind of ["income", "fuelLogs", "accounts", "empty"]) {
     const data = { expenses: [], fuelLogs: [], income: [], accounts: [] };
     if (kind !== "empty") data[kind] = fixture()[kind];
     const app = harness("android", data);
@@ -237,15 +255,20 @@ test("PDF export preserves spending and adds income, accounts and negative balan
   assert.deepEqual(app.captured.deleted, ["file:///test-report.pdf"]);
 });
 
-test("Excel exports real Income and Accounts sheets while retaining Expenses first", async () => {
+test("Excel exports fuel, income and accounts while retaining Expenses first", async () => {
   const app = harness();
   const { exportExpensesToExcel } = await app.load("lib", "excel", "exportExcel.js");
   await exportExpensesToExcel(await reportFor(app));
   const workbook = XLSX.read(app.captured.saves[0].base64, { type: "base64" });
-  assert.deepEqual(workbook.SheetNames, ["Expenses", "Income", "Accounts"]);
+  assert.deepEqual(workbook.SheetNames, ["Expenses", "Fuel", "Income", "Accounts"]);
   const rows = (name) => XLSX.utils.sheet_to_json(workbook.Sheets[name]);
   assert.equal(rows("Expenses")[0].title, "MealNovember");
-  assert.deepEqual(rows("Income").map((row) => row.account), ["BankSavings", "Unassigned"]);
+  assert.equal(rows("Fuel")[0].startKm, 100);
+  assert.equal(rows("Fuel")[0].litres, 2);
+  assert.equal(rows("Fuel")[0].pricePerLitre, 20);
+  assert.equal(rows("Fuel")[0].totalCost, 40);
+  assert.equal(rows("Income")[0].account, "BankSavings");
+  assert.equal(rows("Income")[1].account, "");
   assert.equal(rows("Income")[0].amount, 2500);
   assert.equal(rows("Accounts")[1].openingBalance, 1000);
   assert.equal(rows("Accounts")[1].income, 3200);
@@ -254,16 +277,80 @@ test("Excel exports real Income and Accounts sheets while retaining Expenses fir
   assert.equal(rows("Accounts")[2].balance, -10);
 });
 
-test("Excel retains empty sheet headers for income-only and accounts-only reports", async () => {
-  for (const kind of ["income", "accounts"]) {
+test("Excel retains empty sheet headers for fuel-only, income-only and accounts-only reports", async () => {
+  for (const kind of ["fuelLogs", "income", "accounts"]) {
     const app = harness("android", { expenses: [], fuelLogs: [], income: [], accounts: [], [kind]: fixture()[kind] });
     const { exportExpensesToExcel } = await app.load("lib", "excel", "exportExcel.js");
     await exportExpensesToExcel(await reportFor(app));
     const workbook = XLSX.read(app.captured.saves[0].base64, { type: "base64" });
-    assert.deepEqual(workbook.SheetNames, ["Expenses", "Income", "Accounts"]);
+    assert.deepEqual(workbook.SheetNames, ["Expenses", "Fuel", "Income", "Accounts"]);
+    assert.equal(workbook.Sheets.Expenses.A1.v, "title");
+    assert.equal(workbook.Sheets.Fuel.A1.v, "startKm");
     assert.equal(workbook.Sheets.Income.A1.v, "title");
     assert.equal(workbook.Sheets.Accounts.A1.v, "name");
   }
+});
+
+test("monthly report reimport skips existing rows and preserves account links", async () => {
+  const app = harness();
+  const report = await reportFor(app);
+  report.expenses[0].date = "2026-11-03";
+  const { exportExpensesToExcel } = await app.load("lib", "excel", "exportExcel.js");
+  await exportExpensesToExcel(report);
+  const { parseExcelFile } = await app.load("lib", "excel", "workbookData.js");
+  const parsed = parseExcelFile(Buffer.from(app.captured.saves[0].base64, "base64"));
+  const { TABLES, mergePortableTables } = await app.load("lib", "backup", "portableData.js");
+  const current = Object.fromEntries(Object.keys(TABLES).map((table) => [table, []]));
+  current.accounts = report.accounts;
+  for (const table of ["expenses", "income", "fuelLogs"]) {
+    current[table] = report[table].map((row, index) => ({ ...row, id: index + 1 }));
+  }
+  const result = mergePortableTables(current, parsed.tables, parsed.options);
+  for (const table of ["expenses", "income", "fuelLogs", "accounts"]) {
+    assert.equal(result.counts[table].added, 0, table);
+  }
+});
+
+test("sample Excel template is importable as a multi-sheet report", async () => {
+  const app = harness();
+  const { downloadSampleExcelTemplate } = await app.load("lib", "excel", "sampleImportTemplate.js");
+  await downloadSampleExcelTemplate();
+  const { parseExcelFile } = await app.load("lib", "excel", "workbookData.js");
+  const parsed = parseExcelFile(Buffer.from(app.captured.saves[0].base64, "base64"));
+  for (const table of ["expenses", "fuelLogs", "income", "accounts"]) {
+    assert.equal(parsed.tables[table].length, 1, table);
+  }
+  const { readExcelAsset, importExcelData } = await app.load("lib", "excel", "importExcel.js");
+  const bytes = Uint8Array.from(Buffer.from(app.captured.saves[0].base64, "base64"));
+  const selected = await readExcelAsset({ name: "sample.xlsx", size: bytes.length, file: { arrayBuffer: async () => bytes.buffer } });
+  assert.equal(importExcelData(selected).expenses.added, 1);
+  assert.equal(app.captured.imported.backup.tables.fuelLogs.length, 1);
+  await assert.rejects(() => readExcelAsset({ name: "sample.xlsx", size: 20 * 1024 * 1024 + 1 }), /20 MiB/);
+});
+
+test("full database Excel export uses portable data and reports skipped references", async () => {
+  const app = harness();
+  const { TABLES } = await app.load("lib", "backup", "portableData.js");
+  const tables = Object.fromEntries(Object.keys(TABLES).map((table) => [table, []]));
+  tables.fuelLogs.push({ id: 1, startKm: 100, litres: 2, pricePerLitre: 20,
+    totalCost: 40, date: "03/11/2026", month: "2026-11" });
+  app.captured.backupResult = { backup: { tables }, skipped: { transfers: 1, subcategories: 0, unassigned: 0 } };
+  const { exportDatabaseToExcel } = await app.load("lib", "excel", "databaseExcel.js");
+  assert.match(await exportDatabaseToExcel(), /1 transfer/);
+  const { parseExcelFile } = await app.load("lib", "excel", "workbookData.js");
+  const parsed = parseExcelFile(Buffer.from(app.captured.saves[0].base64, "base64"));
+  assert.equal(parsed.kind, "database");
+  assert.equal(parsed.tables.fuelLogs[0].totalCost, 40);
+});
+
+test("web Excel export requests a downloadable workbook", async () => {
+  const app = harness("web");
+  const { exportExpensesToExcel } = await app.load("lib", "excel", "exportExcel.js");
+  await exportExpensesToExcel(await reportFor(app));
+  assert.deepEqual(app.captured.excelDownloads, ["Expense_Report_November_2026.xlsx"]);
+  const bytes = await app.captured.excelBlob.arrayBuffer();
+  const workbook = XLSX.read(bytes, { type: "array" });
+  assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Fuel)[0].totalCost, 40);
 });
 
 for (const os of ["android", "ios"]) {
