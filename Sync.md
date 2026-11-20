@@ -18,11 +18,11 @@ graph TD
     E -->|Write local| B
 ```
 
-**Scope:** Backend alignment only; no mobile runtime or SQLite migrations were changed.
-The comparison uses [schema.js](src/lib/db/schema.js), the SQL initialization/migrations and business rules in [queries.js](src/lib/db/queries.js), and the actual payloads in [syncManager.js](src/lib/sync/syncManager.js).
+**Scope:** All eight tables — accounts, categories, subcategories, expenses, income, transfers, budgets and fuel logs — sync both ways, including deletions.
+The mobile side is [syncEngine.js](src/lib/sync/syncEngine.js) (pure, Node-tested), [syncStores.js](src/lib/sync/syncStores.js) (SQLite and browser localStorage adapters), [localStore.js](src/lib/sync/localStore.js) and [syncManager.js](src/lib/sync/syncManager.js) (app wiring), and [syncMigrations.js](src/lib/db/syncMigrations.js) (schema upgrade).
 
-**Offline:** Data saves locally. Expenses, income, budgets and fuel logs have sync bookkeeping; accounts, transfers, categories and subcategories do not.
-**Online today:** The mobile sync manager pushes/pulls expenses (only title, amount, month, method), budgets and fuel logs. Backend support for the other fields/tables does **not** make the unchanged mobile client sync them.
+**Offline:** Every write is saved locally and marked `pending`. Deleting an already-synced row queues a server delete.
+**Online:** Queued deletes are sent first, then each table is pushed and pulled in parent-first order.
 
 ---
 
@@ -96,126 +96,52 @@ Every entity uses the same protocol:
 | Categories | `/categories` | `categories` | `GET /` (with nested `subcategories`), `POST /`, `DELETE /:id` |
 | Subcategories | `/subcategories` | `subcategories` | `GET /?categoryName=`, `POST /`, `PUT /:id`, `DELETE /:id` |
 
-### Mobile follow-up (not yet implemented in `syncManager.js`)
-The backend accepts every mobile field. To sync all of them, `syncManager.js` still needs to:
-1. Send the remaining expense fields: `category`, `subcategory`, `date`, `description`, `imageUri`, and `accountName` (look up `accountId` → `accounts.name`).
-2. Add `syncIncome()`. The `income` table already has `remote_id` and `sync_status`.
-3. Add `remote_id` and `sync_status` to `accounts`, `categories`, `subcategories`, and `transfers`, then sync them in this order: accounts → categories → subcategories → expenses / income / transfers → budgets → fuel. When pulling, map names back to local ids.
-4. Apply the new fields on expense pulls as well as pushes. `imageUri` is stored as metadata only; a phone-local URI is not an uploaded image and is not readable on another device.
-5. Add deletion tracking/pushes. Current local deletes are not sent to the backend; `activeIds` only reconciles server-to-client deletions.
+### Mobile sync implementation
+
+**Order:** queued deletes (children first) → accounts → categories → subcategories → expenses → income → transfers → budgets → fuel logs. Each table is pushed (`POST /<route>/sync`, batches of 100) and then pulled (`GET /<route>/delta?since=<cursor>`).
+
+**Local bookkeeping:** every table has `remote_id` and `sync_status` (`pending` | `synced`). `sync_meta` stores per-table cursors and one-time upgrade flags. `sync_deletes` stores queued server deletes. On web the same data lives in localStorage keys `sync_meta` and `sync_deletes`, and subcategories stay nested in `categories`.
+
+**Ids and references:** the server links rows by name, while the app uses local integer ids. On push, `accountId`, `fromAccountId`, `toAccountId` and `categoryId` are sent as names; on pull they are mapped back to local ids. Accounts and categories are matched by name, subcategories by category and name (case-insensitive), and budgets by month. Rows without a natural key get a client-generated 24-hex id before their first upload, so a retry after a lost response updates the same document instead of creating a duplicate.
+
+**Conflicts:** a row is marked `synced` only if it still matches the version that was uploaded; an edit made during the request stays `pending`. Pulls never overwrite a `pending` row; the local edit is uploaded instead, so the last write accepted by the server wins. Remote category and subcategory renames are applied to expense text fields.
+
+**Deletes:** local deletes use the same cascades as the server (via `removeWithCascade`):
+- Deleting an account clears expense and income links and deletes its transfers.
+- Deleting a category moves its expenses to "General" and deletes its subcategories.
+- Deleting a subcategory clears it only on its parent category's expenses.
+
+Affected rows become `pending`. A `404` on delete counts as already deleted. Rows missing from `activeIds` are removed locally unless they are pending. A remotely deleted account, category or subcategory that still has pending local rows is re-uploaded instead of being removed.
+
+**Failures:** a network error or 60-second timeout stops the pass and keeps the queues and cursors. A rejected row stays `pending` and is reported. A table's cursor only advances when every downloaded item was applied.
+
+**Upgrade:** on first launch the migration adds missing columns and tables in a single transaction. It also recovers fuel logs stranded in `fuel_logs_old` by the previous migration, which renamed the table and then failed. Existing expenses are re-uploaded once so the server receives the fields the old manager never sent.
+
+**Limitations:**
+- `imageUri` is synced as text only; the image file is not uploaded.
+- Budgets cannot be deleted (there is no delete in the app or on the server).
+- Default categories and the "Cash" account seeded on a new device are merged by name. They can bring back a default that another device deleted.
+- There is no authentication or per-user data isolation.
 
 ---
 
-## 📱 Mobile SQLite Schema (excerpt)
+## 📱 Mobile SQLite Schema
 
-The complete eight-table field mapping is above; [schema.js](src/lib/db/schema.js) remains the source of truth. This excerpt shows the three tables the current mobile sync manager uses.
-
-```javascript
-export const expenses = sqliteTable('expenses', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  remoteId: text('remote_id'),           // MongoDB _id
-  title: text('title').notNull(),
-  amount: real('amount').notNull(),
-  category: text('category'),            // On server too — not pushed by syncManager yet
-  accountId: integer('account_id'),      // Map to accountName before pushing
-  subcategory: text('subcategory'),
-  date: text('date'),                    // On server too — not pushed by syncManager yet
-  description: text('description'),      // On server too — not pushed by syncManager yet
-  month: text('month').notNull(),
-  method: text('method'),
-  imageUri: text('image_uri'),
-  syncStatus: text('sync_status').default('pending'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-});
-
-export const budgets = sqliteTable('budgets', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  remoteId: text('remote_id'),           // MongoDB _id
-  amount: real('amount').notNull(),
-  month: text('month').notNull().unique(),
-  syncStatus: text('sync_status').default('pending'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-});
-
-export const fuelLogs = sqliteTable('fuel_logs', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  remoteId: text('remote_id'),           // MongoDB _id
-  startKm: real('start_km').notNull(),
-  odometerKm: real('odometer_km'),       // nullable — end reading added later
-  litres: real('litres').notNull(),
-  pricePerLitre: real('price_per_litre').notNull(),
-  totalCost: real('total_cost').notNull(),
-  date: text('date').notNull(),
-  month: text('month').notNull(),
-  note: text('note'),
-  syncStatus: text('sync_status').default('pending'),
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
-});
-```
+[schema.js](src/lib/db/schema.js) is the source of truth. All eight tables include `remoteId: text('remote_id')` and `syncStatus: text('sync_status').default('pending')`; the backend contract test ignores these bookkeeping fields. The runtime `CREATE TABLE` and `ALTER TABLE` statements are in [syncMigrations.js](src/lib/db/syncMigrations.js).
 
 ---
 
 ## 🔄 Mobile Sync Manager (`src/lib/sync/syncManager.js`)
 
-Three exported functions:
+- `API_URL`: `EXPO_PUBLIC_API_URL` (for example `https://<service>.onrender.com`). In development it falls back to the local backend on port 5000.
+- `syncAll()`: syncs every table. Concurrent calls share one pass, and a change made during a pass triggers one more pass. It never rejects; it resolves to `{ ok, offline, pushed, pulled, removed, deleted, errors }`.
+- `startAutoSync()`: called by [_layout.jsx](src/app/_layout.jsx) once the database is ready. It syncs when the device comes online, and 2 seconds after any local write (every mutation in [queries.js](src/lib/db/queries.js) calls `notifyLocalChange()`).
+- The drawer's manual sync reports success, offline, or how many items failed.
 
-### `syncExpenses()`
-1. **Push:** Queries SQLite for `sync_status = 'pending'` expenses
-2. Sends only `{ id, remoteId, title, amount, month, method }` to `POST /expenses/sync`
-3. Server upserts into MongoDB and returns `syncedIds` with MongoDB `_id`
-4. Updates local SQLite: sets `sync_status = 'synced'` and stores `remote_id`
-5. **Pull:** Fetches `GET /expenses/delta?since=<lastSync>` for new server records
-6. Upserts into SQLite with `sync_status = 'synced'`
+Run the mobile tests (the sync suite uses in-memory SQLite, localStorage and a fake backend):
 
-### `syncBudgets()`
-1. **Push:** Same pattern as expenses but for budgets
-2. Sends `{ id, remoteId, amount, month }` to `POST /budget/sync`
-3. **Pull:** Fetches `GET /budget/delta` — pulls ALL budgets to reconcile deletions by month (the backend now has timestamps)
-4. Upserts by `month` uniqueness
-
-### `syncFuelLogs()`
-1. **Push:** Queries SQLite for `sync_status = 'pending'` fuel logs
-2. Sends all fuel fields to `POST /fuel/sync`
-3. Server upserts into MongoDB and returns `syncedIds` with MongoDB `_id`
-4. Updates local SQLite: sets `sync_status = 'synced'` and stores `remote_id`
-5. **Pull:** Fetches `GET /fuel/delta?since=<lastSync>` for new/updated server records
-6. Upserts into SQLite with `sync_status = 'synced'`
-7. **Deletion reconciliation:** Removes local synced records whose `remoteId` is no longer in `activeIds`
-
-### `syncAll()`
-```javascript
-export const syncAll = async () => {
-  await syncExpenses();
-  await syncBudgets();
-  await syncFuelLogs();
-};
-```
-
----
-
-## 🛰️ Auto-Sync Setup
-
-To automatically trigger sync when the device comes online, install NetInfo and add a listener in your root layout:
-
-```bash
-npx expo install @react-native-community/netinfo
-```
-
-```javascript
-// In src/app/_layout.jsx
-import NetInfo from '@react-native-community/netinfo';
-import { useEffect } from 'react';
-import { syncAll } from '../lib/sync/syncManager';
-
-// Inside your layout component:
-useEffect(() => {
-  const unsubscribe = NetInfo.addEventListener(state => {
-    if (state.isConnected && state.isInternetReachable) {
-      syncAll();
-    }
-  });
-  return () => unsubscribe();
-}, []);
+```powershell
+node --experimental-vm-modules --test src\lib\sync\syncEngine.test.mjs src\lib\backup\portableData.test.mjs src\lib\reports\monthlyReportData.test.mjs
 ```
 
 ---
@@ -237,11 +163,24 @@ $env:TEST_MONGO_URI = "mongodb://127.0.0.1:27017"
 node --test tests\integration.test.js
 ```
 
-The integration suite uses the Express app over HTTP and real Mongoose writes/indexes. It covers all eight push/retry/pull round trips, existing web APIs, field preservation, invalid rows, delta boundaries, account balances and cascades. It creates and drops a uniquely named `expense_backend_test_*` database. It only accepts loopback MongoDB addresses and never loads `.env` or uses `Railway_Mongo_Uri`. Do not change it to target a deployed database.
+The integration suite uses the Express app over HTTP and real Mongoose writes/indexes. It covers all eight push/retry/pull round trips, existing web APIs, field preservation, invalid rows, delta boundaries, account balances and cascades. It creates and drops a uniquely named `expense_backend_test_*` database. It only accepts loopback MongoDB addresses and never loads `.env` or uses `MONGODB_URI`. Do not change it to target a deployed database.
 
 Equivalent package scripts are `npm test` and `npm run test:integration`. Tests require no new dependencies. The offline suite needs the sibling Mobile checkout so it can read the source schema.
 
-`App.js` registers routes without starting a listener or connecting to a database, for test isolation. `Server.js` remains the production entry point; it waits for MongoDB before listening and exits unsuccessfully if the connection fails.
+`App.js` registers routes without starting a listener or connecting to a database, for test isolation. `Server.js` remains the production entry point; it waits for MongoDB (`MONGODB_URI`) before listening and exits unsuccessfully if the connection fails.
+
+---
+
+## ☁️ Render deployment and keep-alive
+
+Create a Render **Web Service** (Node runtime) from the backend repository with build command `npm ci --omit=dev`, start command `npm start`, and environment variables `MONGODB_URI` (an externally reachable MongoDB such as Atlas) and `NODE_VERSION=24`. Render supplies `PORT`; `Server.js` already uses it.
+
+`GET /health` (and `HEAD /health`) is an unauthenticated liveness probe returning `{ "status": "ok", "uptime": <seconds>, "database": "connected" | "disconnected" | ... }` with `Cache-Control: no-store`. It never queries the database, and always answers `200` while the process is running, so a brief database reconnect does not restart the service.
+
+- Set the service's **Health Check Path** to `/health` so Render can verify new deploys.
+- Render's free web services spin down after 15 minutes without inbound traffic. Render's own health checks are for deploy and restart decisions, and are not documented as traffic that prevents spin-down. To keep the instance awake, configure an external monitor (for example UptimeRobot or cron-job.org) to request `https://<service>.onrender.com/health` at least every 10 minutes. A free instance can also restart at any time and has an ephemeral filesystem; this API stores nothing locally.
+- Mobile release builds need `EXPO_PUBLIC_API_URL=https://<service>.onrender.com`; without it a release build stays offline-only.
+- There is no authentication or per-user data isolation yet; add it before storing real financial data on a public URL.
 
 ---
 

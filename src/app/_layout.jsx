@@ -3,8 +3,7 @@ import { Drawer } from "expo-router/drawer";
 import "../../global.css";
 import { useEffect, useState } from "react";
 import { initDatabase } from "../lib/db/queries";
-import NetInfo from "@react-native-community/netinfo";
-import { syncAll } from "../lib/sync/syncManager";
+import { startAutoSync } from "../lib/sync/syncManager";
 import CustomDrawerContent from "../components/CustomDrawer";
 import { useThemePersist } from "../lib/utils/useThemePersist";
 import { registerBackupTask } from "../lib/backup/backgroundTask";
@@ -50,7 +49,7 @@ export default function RootLayout() {
       })
       .catch((e) => {
         console.error(e);
-        setDbReady(true);
+        setRecoveryError("The local database could not be opened or upgraded. Your data was not changed. Restart the app to retry.");
       });
     };
     initialize();
@@ -58,22 +57,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!dbReady) return;
-
-    NetInfo.fetch().then((state) => {
-      if (state.isConnected && state.isInternetReachable) {
-        console.log("Device initially online — triggering sync on mount...");
-        syncAll();
-      }
-    });
-
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (state.isConnected && state.isInternetReachable) {
-        console.log("Device online — triggering sync...");
-        syncAll();
-      }
-    });
-
-    return () => unsubscribe();
+    // Syncs all tables when the device comes online and shortly after local changes.
+    return startAutoSync();
   }, [dbReady]);
 
 

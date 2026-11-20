@@ -38,6 +38,8 @@ function readTables() {
           id, categoryId: category.id,
           name: typeof sub === "string" ? sub : sub.name,
           createdAt: typeof sub === "string" ? null : sub.createdAt,
+          remoteId: typeof sub === "string" ? null : sub.remoteId ?? null,
+          syncStatus: typeof sub === "string" ? null : sub.syncStatus ?? null,
         });
       }
     }

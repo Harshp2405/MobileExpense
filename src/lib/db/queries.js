@@ -1,4 +1,4 @@
-import { db } from "./client";
+import { db, expoDb } from "./client";
 import {
   expenses,
   budgets,
@@ -9,9 +9,34 @@ import {
   accounts,
   transfers,
 } from "./schema";
-import { eq, desc, sum, asc, sql , and  , count, or } from "drizzle-orm";
+import { eq, desc, sum, asc , and  , count } from "drizzle-orm";
 import { Platform } from "react-native";
 import { deleteLocalImage } from "../utils/imageManager";
+import { expoSqliteDriver, migrateDatabase } from "./syncMigrations";
+import { removeWithCascade } from "../sync/syncEngine";
+import {
+  getLocalSyncStore,
+  markDatabaseReady,
+  notifyLocalChange,
+} from "../sync/localStore";
+
+// Every successful local write nudges auto-sync (rows are "pending" until the server accepts them).
+const changed = (value) => {
+  notifyLocalChange();
+  return value;
+};
+
+// Deletes via the sync store so synced rows and cascaded children are queued for server deletion.
+const deleteWithSync = (entity, id) => {
+  const store = getLocalSyncStore();
+  if (!store) return { success: false };
+  const removed = store.transaction(() => {
+    const row = store.rows(entity).find((r) => r.id === id);
+    if (row) removeWithCascade(store, entity, row, { queue: true });
+    return row || null;
+  });
+  return changed({ success: true, removed });
+};
 
 /** ==============================
  *  EXPENSE BUSINESS LOGIC
@@ -74,7 +99,7 @@ export const addExpense = async ({
       };
       list.push(newExpense);
       localStorage.setItem("expenses", JSON.stringify(list));
-      return newExpense;
+      return changed(newExpense);
     }
     throw new Error("Database not initialized");
   }
@@ -93,7 +118,7 @@ export const addExpense = async ({
       accountId: accountId || null, // NEW
     })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
 // Monthly history (AGGREGATION)
@@ -125,31 +150,12 @@ export const getExpenseHistory = async () => {
 
 // DELETE expense
 export const deleteExpense = async (id) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      const list = JSON.parse(localStorage.getItem("expenses") || "[]");
-      const deleted = list.find((e) => e.id === id);
-      if (deleted?.imageUri) {
-        deleteLocalImage(deleted.imageUri);
-      }
-      const nextList = list.filter((e) => e.id !== id);
-      localStorage.setItem("expenses", JSON.stringify(nextList));
-      return { success: true };
-    }
-    return { success: false };
-  }
   try {
-    const existing = await db
-      .select()
-      .from(expenses)
-      .where(eq(expenses.id, id));
-
-    if (existing[0]?.imageUri) {
-      await deleteLocalImage(existing[0].imageUri);
+    const result = deleteWithSync("expenses", id);
+    if (result.removed?.imageUri) {
+      await deleteLocalImage(result.removed.imageUri);
     }
-
-    await db.delete(expenses).where(eq(expenses.id, id));
-    return { success: true };
+    return { success: result.success };
   } catch {
     throw new Error("Failed to delete expense");
   }
@@ -181,7 +187,7 @@ export const addCategory = async ({ name, color }) => {
       };
       list.push(newCategory);
       localStorage.setItem("categories", JSON.stringify(list));
-      return newCategory;
+      return changed(newCategory);
     }
     throw new Error("Database not initialized");
   }
@@ -189,42 +195,13 @@ export const addCategory = async ({ name, color }) => {
     .insert(categories)
     .values({ name, color })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
-export const deleteCategory = async (id, name) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      // 1. Update any expenses belonging to this category to "General" (and clear subcategory)
-      let expensesList = JSON.parse(localStorage.getItem("expenses") || "[]");
-      expensesList = expensesList.map((e) =>
-        e.category === name
-          ? { ...e, category: "General", subcategory: null }
-          : e,
-      );
-      localStorage.setItem("expenses", JSON.stringify(expensesList));
-
-      // 2. Delete the category itself (subcategories array is removed along with it)
-      let categoriesList = JSON.parse(
-        localStorage.getItem("categories") || "[]",
-      );
-      categoriesList = categoriesList.filter((c) => c.id !== id);
-      localStorage.setItem("categories", JSON.stringify(categoriesList));
-
-      return { success: true };
-    }
-    throw new Error("Database not initialized");
-  }
-  // 1. Update any expenses belonging to this category to "General" (and clear subcategory)
-  await db
-    .update(expenses)
-    .set({ category: "General", subcategory: null })
-    .where(eq(expenses.category, name));
-
-  // 2. Delete the category and its subcategories (FK cascades are not enabled)
-  await db.delete(subcategories).where(eq(subcategories.categoryId, id));
-  await db.delete(categories).where(eq(categories.id, id));
-
+// Moves the category's expenses to "General" (clearing subcategory) and deletes its subcategories.
+export const deleteCategory = async (id) => {
+  const result = deleteWithSync("categories", id);
+  if (!result.success) throw new Error("Database not initialized");
   return { success: true };
 };
 
@@ -271,7 +248,7 @@ export const addSubcategory = async ({ categoryId, name }) => {
       };
       list[idx].subcategories.push(newSub);
       localStorage.setItem("categories", JSON.stringify(list));
-      return newSub;
+      return changed(newSub);
     }
     throw new Error("Database not initialized");
   }
@@ -289,107 +266,34 @@ export const addSubcategory = async ({ categoryId, name }) => {
     .insert(subcategories)
     .values({ categoryId, name: trimmed })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
-// Rename a subcategory (also updates matching expenses' subcategory string)
+// Rename a subcategory (also updates the parent category's expenses that use the old name)
 export const updateSubcategory = async (id, { name }) => {
   const trimmed = (name || "").trim();
   if (!trimmed) throw new Error("Subcategory name is required");
 
-  if (!db) {
-    if (Platform.OS === "web") {
-      const list = JSON.parse(localStorage.getItem("categories") || "[]");
-      let oldName = null;
-      for (const cat of list) {
-        const sub = (cat.subcategories || []).find((s) => s.id === id);
-        if (sub) {
-          oldName = sub.name;
-          sub.name = trimmed;
-          break;
-        }
+  const store = getLocalSyncStore();
+  if (!store) throw new Error("Database not initialized");
+  store.transaction(() => {
+    const sub = store.rows("subcategories").find((s) => s.id === id);
+    if (!sub) throw new Error("Subcategory not found");
+    const parent = store.rows("categories").find((c) => c.id === sub.categoryId);
+    store.update("subcategories", id, { name: trimmed, syncStatus: "pending" });
+    for (const e of store.rows("expenses")) {
+      if (parent && e.category === parent.name && e.subcategory === sub.name) {
+        store.update("expenses", e.id, { subcategory: trimmed, syncStatus: "pending" });
       }
-      localStorage.setItem("categories", JSON.stringify(list));
-
-      if (oldName) {
-        const expensesList = JSON.parse(
-          localStorage.getItem("expenses") || "[]",
-        );
-        const updated = expensesList.map((e) =>
-          e.subcategory === oldName ? { ...e, subcategory: trimmed } : e,
-        );
-        localStorage.setItem("expenses", JSON.stringify(updated));
-      }
-      return { success: true };
     }
-    throw new Error("Database not initialized");
-  }
-
-  const [existingSub] = await db
-    .select()
-    .from(subcategories)
-    .where(eq(subcategories.id, id))
-    .limit(1);
-  if (!existingSub) throw new Error("Subcategory not found");
-
-  await db
-    .update(subcategories)
-    .set({ name: trimmed })
-    .where(eq(subcategories.id, id));
-
-  // Keep denormalized expense.subcategory strings in sync
-  await db
-    .update(expenses)
-    .set({ subcategory: trimmed })
-    .where(eq(expenses.subcategory, existingSub.name));
-
-  return { success: true };
+  });
+  return changed({ success: true });
 };
 
-// Delete a subcategory — reassign matching expenses' subcategory to NULL
+// Delete a subcategory — clears it from the parent category's expenses
 export const deleteSubcategory = async (id) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      const list = JSON.parse(localStorage.getItem("categories") || "[]");
-      let removedName = null;
-      for (const cat of list) {
-        const idx = (cat.subcategories || []).findIndex((s) => s.id === id);
-        if (idx > -1) {
-          removedName = cat.subcategories[idx].name;
-          cat.subcategories.splice(idx, 1);
-          break;
-        }
-      }
-      localStorage.setItem("categories", JSON.stringify(list));
-
-      if (removedName) {
-        const expensesList = JSON.parse(
-          localStorage.getItem("expenses") || "[]",
-        );
-        const updated = expensesList.map((e) =>
-          e.subcategory === removedName ? { ...e, subcategory: null } : e,
-        );
-        localStorage.setItem("expenses", JSON.stringify(updated));
-      }
-      return { success: true };
-    }
-    throw new Error("Database not initialized");
-  }
-
-  const [existingSub] = await db
-    .select()
-    .from(subcategories)
-    .where(eq(subcategories.id, id))
-    .limit(1);
-  if (!existingSub) return { success: true };
-
-  await db
-    .update(expenses)
-    .set({ subcategory: null })
-    .where(eq(expenses.subcategory, existingSub.name));
-
-  await db.delete(subcategories).where(eq(subcategories.id, id));
-
+  const result = deleteWithSync("subcategories", id);
+  if (!result.success) throw new Error("Database not initialized");
   return { success: true };
 };
 
@@ -421,11 +325,14 @@ export const saveBudget = async ({ month, amount }) => {
     if (Platform.OS === "web") {
       const list = JSON.parse(localStorage.getItem("budgets") || "[]");
       const idx = list.findIndex((b) => b.month === month);
+      // Keep id/remoteId so the server copy is updated rather than duplicated.
       const newBudget = {
         id: Date.now(),
+        createdAt: new Date().toISOString(),
+        ...(idx > -1 ? list[idx] : {}),
         month,
         amount: Number(amount),
-        createdAt: new Date().toISOString(),
+        syncStatus: "pending",
       };
       if (idx > -1) {
         list[idx] = newBudget;
@@ -433,7 +340,7 @@ export const saveBudget = async ({ month, amount }) => {
         list.push(newBudget);
       }
       localStorage.setItem("budgets", JSON.stringify(list));
-      return newBudget;
+      return changed(newBudget);
     }
     throw new Error("Database not initialized");
   }
@@ -446,7 +353,7 @@ export const saveBudget = async ({ month, amount }) => {
     })
     .returning();
 
-  return result[0];
+  return changed(result[0]);
 };
 
 /** ==============================
@@ -505,132 +412,16 @@ export const initDatabase = async () => {
         ];
         localStorage.setItem("categories", JSON.stringify(defaultCats));
       }
+      // Converts legacy string subcategories into objects with stable ids.
+      getLocalSyncStore()?.rows("subcategories");
+      markDatabaseReady();
     }
     return;
   }
 
   try {
-    // Create Tables
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        color TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS subcategories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(category_id, name)
-      );
-    `);
-
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS budgets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        remote_id TEXT,
-        amount REAL NOT NULL,
-        month TEXT NOT NULL UNIQUE,
-        sync_status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS expenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        remote_id TEXT,
-        title TEXT NOT NULL,
-        amount REAL NOT NULL,
-        category TEXT,
-        subcategory TEXT,
-        date TEXT,
-        description TEXT,
-        month TEXT NOT NULL,
-        method TEXT,
-        image_uri TEXT,
-        sync_status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS fuel_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        remote_id TEXT,
-        start_km REAL NOT NULL,
-        odometer_km REAL,
-        litres REAL NOT NULL,
-        price_per_litre REAL NOT NULL,
-        total_cost REAL NOT NULL,
-        date TEXT NOT NULL,
-        month TEXT NOT NULL,
-        note TEXT,
-        sync_status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-    await db.run(sql`
-      CREATE TABLE IF NOT EXISTS income (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        remote_id TEXT,
-        title TEXT NOT NULL,
-        amount REAL NOT NULL,
-        source TEXT,
-        date TEXT,
-        description TEXT,
-        month TEXT NOT NULL,
-        method TEXT,
-        sync_status TEXT DEFAULT 'pending',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    await db.run(sql`
-  CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL DEFAULT 'Cash',
-    color TEXT,
-    initial_balance REAL NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-    await db.run(sql`
-  CREATE TABLE IF NOT EXISTS transfers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    to_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    amount REAL NOT NULL,
-    date TEXT,
-    month TEXT NOT NULL,
-    note TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-    // Add account_id to expenses / income if missing
-    try {
-      const expenseCols =
-        (await db.run(sql`PRAGMA table_info(expenses)`)).rows || [];
-      if (!expenseCols.some((r) => r.name === "account_id")) {
-        await db.run(sql`ALTER TABLE expenses ADD COLUMN account_id INTEGER`);
-      }
-      const incomeCols =
-        (await db.run(sql`PRAGMA table_info(income)`)).rows || [];
-      if (!incomeCols.some((r) => r.name === "account_id")) {
-        await db.run(sql`ALTER TABLE income ADD COLUMN account_id INTEGER`);
-      }
-    } catch (migErr) {
-      console.warn("Account column migration skipped", migErr);
-    }
+    // Creates/upgrades all eight tables plus sync bookkeeping in one transaction.
+    migrateDatabase(expoSqliteDriver(expoDb));
 
     // Seed a default "Cash" account so existing users always have one to pick
     const accountCheck = await db.select().from(accounts).limit(1);
@@ -638,76 +429,6 @@ export const initDatabase = async () => {
       await db
         .insert(accounts)
         .values({ name: "Cash", type: "Cash", initialBalance: 0 });
-    }
-
-    // NEW: migrate `expenses` — add nullable `subcategory` column if missing
-    try {
-      const expenseCols = await db.run(sql`PRAGMA table_info(expenses)`);
-      const cols = expenseCols.rows || [];
-      const hasSubcategory = cols.some((r) => r.name === "subcategory");
-      if (!hasSubcategory) {
-        await db.run(sql`ALTER TABLE expenses ADD COLUMN subcategory TEXT`);
-        console.log("Migrated expenses: added nullable subcategory column");
-      }
-      // NEW: migrate `image_uri` column if missing (was omitted from the original CREATE TABLE)
-      const hasImageUri = cols.some((r) => r.name === "image_uri");
-      if (!hasImageUri) {
-        await db.run(sql`ALTER TABLE expenses ADD COLUMN image_uri TEXT`);
-        console.log("Migrated expenses: added nullable image_uri column");
-      }
-    } catch (migErr) {
-      console.warn("Expense migration check skipped", migErr);
-    }
-
-    // Migration: add remote_id + sync_status columns if missing
-    try {
-      const tableInfo = await db.run(sql`PRAGMA table_info(fuel_logs)`);
-      const cols = tableInfo.rows || [];
-      const hasRemoteId = cols.some((r) => r.name === "remote_id");
-      const hasSyncStatus = cols.some((r) => r.name === "sync_status");
-      const odoCol = cols.find((r) => r.name === "odometer_km");
-      const needsRecreate = odoCol && odoCol.notnull === 1;
-
-      if (needsRecreate || !hasRemoteId || !hasSyncStatus) {
-        await db.run(sql`ALTER TABLE fuel_logs RENAME TO fuel_logs_old`);
-        await db.run(sql`
-          CREATE TABLE fuel_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            remote_id TEXT,
-            start_km REAL NOT NULL,
-            odometer_km REAL,
-            litres REAL NOT NULL,
-            price_per_litre REAL NOT NULL,
-            total_cost REAL NOT NULL,
-            date TEXT NOT NULL,
-            month TEXT NOT NULL,
-            note TEXT,
-            sync_status TEXT DEFAULT 'pending',
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        // Copy old data — pad missing columns with defaults
-        const oldCols = cols.map((c) => c.name).join(", ");
-        const selectCols = cols.map((c) => c.name).join(", ");
-        const extraCols = [];
-        if (!hasRemoteId) extraCols.push("NULL as remote_id");
-        if (!hasSyncStatus) extraCols.push("'pending' as sync_status");
-        const selectExpr =
-          extraCols.length > 0
-            ? `${selectCols}, ${extraCols.join(", ")}`
-            : selectCols;
-        await db.run(
-          sql.raw(
-            `INSERT INTO fuel_logs (${oldCols}${!hasRemoteId ? ", remote_id" : ""}${!hasSyncStatus ? ", sync_status" : ""}) SELECT ${selectExpr} FROM fuel_logs_old`,
-          ),
-        );
-        await db.run(sql`DROP TABLE fuel_logs_old`);
-        console.log(
-          "Migrated fuel_logs: added remote_id, sync_status, nullable odometer_km",
-        );
-      }
-    } catch (migErr) {
-      console.warn("Fuel migration check skipped", migErr);
     }
 
     // Seed SQLite categories if empty
@@ -729,7 +450,9 @@ export const initDatabase = async () => {
     console.log("Database initialized successfully with default categories");
   } catch (error) {
     console.error("Failed to initialize database", error);
+    throw error;
   }
+  markDatabaseReady();
 };
 
 export const getFuelLogs = async () => {
@@ -779,7 +502,7 @@ export const addFuelLog = async ({
       };
       list.push(newLog);
       localStorage.setItem("fuel_logs", JSON.stringify(list));
-      return newLog;
+      return changed(newLog);
     }
     throw new Error("Database not initialized");
   }
@@ -796,7 +519,7 @@ export const addFuelLog = async ({
       note,
     })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
 export const updateFuelLogEndReading = async (id, endKm) => {
@@ -804,31 +527,22 @@ export const updateFuelLogEndReading = async (id, endKm) => {
     if (Platform.OS === "web") {
       const list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
       const log = list.find((f) => f.id === id);
-      if (log) log.odometerKm = endKm;
+      if (log) Object.assign(log, { odometerKm: endKm, syncStatus: "pending" });
       localStorage.setItem("fuel_logs", JSON.stringify(list));
-      return { success: true };
+      return changed({ success: true });
     }
     return { success: false };
   }
   await db
     .update(fuelLogs)
-    .set({ odometerKm: endKm })
+    .set({ odometerKm: endKm, syncStatus: "pending" })
     .where(eq(fuelLogs.id, id));
-  return { success: true };
+  return changed({ success: true });
 };
 
 export const deleteFuelLog = async (id) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      let list = JSON.parse(localStorage.getItem("fuel_logs") || "[]");
-      list = list.filter((f) => f.id !== id);
-      localStorage.setItem("fuel_logs", JSON.stringify(list));
-      return { success: true };
-    }
-    return { success: false };
-  }
-  await db.delete(fuelLogs).where(eq(fuelLogs.id, id));
-  return { success: true };
+  const { success } = deleteWithSync("fuelLogs", id);
+  return { success };
 };
 
 // Uses startKm from each log — no need to compare consecutive entries
@@ -912,7 +626,7 @@ export const addIncome = async ({
       };
       list.push(newIncome);
       localStorage.setItem("income", JSON.stringify(list));
-      return newIncome;
+      return changed(newIncome);
     }
     throw new Error("Database not initialized");
   }
@@ -929,7 +643,7 @@ export const addIncome = async ({
       accountId: accountId || null,
     })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
 export const updateIncome = async (
@@ -951,9 +665,10 @@ export const updateIncome = async (
         month: month || list[index].month,
         method: method || "Cash",
         accountId: accountId || null,
+        syncStatus: "pending",
       };
       localStorage.setItem("income", JSON.stringify(list));
-      return list[index];
+      return changed(list[index]);
     }
     throw new Error("Database not initialized");
   }
@@ -976,7 +691,7 @@ export const updateIncome = async (
       .returning();
 
     if (result.length === 0) throw new Error("Income not found");
-    return result[0];
+    return changed(result[0]);
   } catch (error) {
     console.error("[queries.updateIncome] Failed:", error);
     throw new Error("Failed to update income");
@@ -984,17 +699,8 @@ export const updateIncome = async (
 };
 
 export const deleteIncome = async (id) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      let list = JSON.parse(localStorage.getItem("income") || "[]");
-      list = list.filter((i) => i.id !== id);
-      localStorage.setItem("income", JSON.stringify(list));
-      return { success: true };
-    }
-    return { success: false };
-  }
-  await db.delete(income).where(eq(income.id, id));
-  return { success: true };
+  const { success } = deleteWithSync("income", id);
+  return { success };
 };
 
 // Distinct years present in the data — powers the year selector without hardcoding.
@@ -1064,7 +770,7 @@ export const addAccount = async ({ name, type, color, initialBalance }) => {
       };
       list.push(newAccount);
       localStorage.setItem("accounts", JSON.stringify(list));
-      return newAccount;
+      return changed(newAccount);
     }
     throw new Error("Database not initialized");
   }
@@ -1078,49 +784,12 @@ export const addAccount = async ({ name, type, color, initialBalance }) => {
       initialBalance: Number(initialBalance) || 0,
     })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
+// Unassigns the account's expenses/income and deletes its transfers.
 export const deleteAccount = async (id) => {
-  if (!db) {
-    if (Platform.OS === "web") {
-      // Unassign transactions instead of deleting them (mirrors SQLite behavior)
-      const expensesList = JSON.parse(localStorage.getItem("expenses") || "[]").map(
-        (e) => (e.accountId === id ? { ...e, accountId: null } : e),
-      );
-      localStorage.setItem("expenses", JSON.stringify(expensesList));
-
-      const incomeList = JSON.parse(localStorage.getItem("income") || "[]").map(
-        (i) => (i.accountId === id ? { ...i, accountId: null } : i),
-      );
-      localStorage.setItem("income", JSON.stringify(incomeList));
-
-      const transferList = JSON.parse(localStorage.getItem("transfers") || "[]").filter(
-        (t) => t.fromAccountId !== id && t.toAccountId !== id,
-      );
-      localStorage.setItem("transfers", JSON.stringify(transferList));
-
-      let list = JSON.parse(localStorage.getItem("accounts") || "[]");
-      list = list.filter((a) => a.id !== id);
-      localStorage.setItem("accounts", JSON.stringify(list));
-      return { success: true };
-    }
-    return { success: false };
-  }
-  // Unassign transactions instead of deleting them
-  await db
-    .update(expenses)
-    .set({ accountId: null })
-    .where(eq(expenses.accountId, id));
-  await db
-    .update(income)
-    .set({ accountId: null })
-    .where(eq(income.accountId, id));
-  // FK cascades are not enabled, so remove the account's transfers explicitly
-  await db
-    .delete(transfers)
-    .where(or(eq(transfers.fromAccountId, id), eq(transfers.toAccountId, id)));
-  await db.delete(accounts).where(eq(accounts.id, id));
-  return { success: true };
+  const { success } = deleteWithSync("accounts", id);
+  return { success };
 };
 
 /** BALANCES **/
@@ -1208,7 +877,7 @@ export const addTransfer = async ({
       };
       list.push(newTransfer);
       localStorage.setItem("transfers", JSON.stringify(list));
-      return newTransfer;
+      return changed(newTransfer);
     }
     throw new Error("Database not initialized");
   }
@@ -1224,7 +893,7 @@ export const addTransfer = async ({
       note,
     })
     .returning();
-  return result[0];
+  return changed(result[0]);
 };
 
 /**
@@ -1267,9 +936,10 @@ export const updateExpense = async (id, {
         method,
         imageUri: imageUri || null,
         accountId: accountId || null,
+        syncStatus: "pending",
       };
       localStorage.setItem("expenses", JSON.stringify(list));
-      return list[idx];
+      return changed(list[idx]);
     }
     throw new Error("Database not initialized");
   }
@@ -1297,7 +967,7 @@ export const updateExpense = async (id, {
     if (!result || result.length === 0) {
       throw new Error("Expense not found");
     }
-    return result[0];
+    return changed(result[0]);
   } catch (err) {
     console.error("[queries.updateExpense] Failed:", err);
     throw new Error("Failed to update expense");

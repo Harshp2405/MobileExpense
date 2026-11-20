@@ -397,7 +397,9 @@ test("browser export skips broken transfers and import keeps them in storage", (
   assert.equal(exported.tables.expenses[0].accountId, null);
   service.importPortableBackup({ tables: data() });
   const transfers = JSON.parse(storage.getItem("transfers"));
-  assert.deepEqual(transfers.find((row) => row.id === 5), { ...orphan, createdAt: null, date: null, note: null });
+  assert.deepEqual(transfers.find((row) => row.id === 5), {
+    ...orphan, createdAt: null, date: null, note: null, remoteId: null, syncStatus: null,
+  });
   assert.equal(transfers.length, 2);
   assert.equal(JSON.parse(storage.getItem("expenses")).find((row) => row.id === 4).accountId, 123);
 });

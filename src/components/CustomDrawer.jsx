@@ -198,13 +198,19 @@ export default function CustomDrawerContent(props) {
     if (syncing) return;
     try {
       setSyncing(true);
-      await syncAll();
-      const now = new Date();
-      setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      Alert.alert("Sync Successful", "Local offline store is fully synchronized with MongoDB Atlas.");
-    } catch (error) {
-      console.warn("[Sync] Manual sync failed:", error);
-      Alert.alert("Sync Offline", "Backend server currently unreachable. Operating offline.");
+      const result = await syncAll();
+      if (result.ok) {
+        const now = new Date();
+        setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        Alert.alert("Sync Successful", "All local data is synchronized with the server.");
+      } else if (result.offline) {
+        Alert.alert("Sync Offline", "Backend server currently unreachable. Changes are kept and will sync when online.");
+      } else {
+        Alert.alert(
+          "Sync Incomplete",
+          `${result.errors.length} item(s) could not be synced and will be retried.\n${result.errors[0]?.message || ""}`,
+        );
+      }
     } finally {
       setSyncing(false);
     }

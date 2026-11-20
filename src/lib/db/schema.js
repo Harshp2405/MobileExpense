@@ -22,6 +22,8 @@ export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   color: text("color"),
+  remoteId: text("remote_id"),
+  syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -30,6 +32,8 @@ export const subcategories = sqliteTable("subcategories", {
   categoryId: integer("category_id").notNull()
   .references(() => categories.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  remoteId: text("remote_id"),
+  syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 export const budgets = sqliteTable("budgets", {
@@ -77,6 +81,8 @@ export const accounts = sqliteTable("accounts", {
   type: text("type").notNull().default("Cash"), // Cash | Bank | Card | UPI | Wallet
   color: text("color"),
   initialBalance: real("initial_balance").notNull().default(0),
+  remoteId: text("remote_id"),
+  syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -92,5 +98,7 @@ export const transfers = sqliteTable("transfers", {
   date: text("date"),
   month: text("month").notNull(),
   note: text("note"),
+  remoteId: text("remote_id"),
+  syncStatus: text("sync_status").default("pending"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });

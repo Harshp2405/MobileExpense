@@ -1,9 +1,9 @@
 const common = { id: "id", createdAt: "text" };
 const synced = { remoteId: "text", syncStatus: "text" };
 export const TABLES = {
-  categories: { ...common, name: "requiredText", color: "text" },
-  accounts: { ...common, name: "requiredText", type: "requiredText", color: "text", initialBalance: "number" },
-  subcategories: { ...common, categoryId: "id", name: "requiredText" },
+  categories: { ...common, ...synced, name: "requiredText", color: "text" },
+  accounts: { ...common, ...synced, name: "requiredText", type: "requiredText", color: "text", initialBalance: "number" },
+  subcategories: { ...common, ...synced, categoryId: "id", name: "requiredText" },
   budgets: { ...common, ...synced, amount: "number", month: "month" },
   expenses: {
     ...common, ...synced, title: "requiredText", amount: "number", category: "text",
@@ -21,7 +21,7 @@ export const TABLES = {
     month: "month", method: "text",
   },
   transfers: {
-    ...common, fromAccountId: "id", toAccountId: "id", amount: "number",
+    ...common, ...synced, fromAccountId: "id", toAccountId: "id", amount: "number",
     date: "text", month: "month", note: "text",
   },
 };
