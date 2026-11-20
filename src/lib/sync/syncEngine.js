@@ -212,10 +212,12 @@ export const upgradeLocalSyncState = (store) => {
   });
 };
 
-export const createSyncEngine = ({ store, fetchImpl, apiUrl, createRemoteId, timeoutMs = 60000, log = () => {} }) => {
-  const request = async (method, path, body) => {
+export const createSyncEngine = ({
+  store, fetchImpl, apiUrl, createRemoteId, timeoutMs = 60000, wakeTimeoutMs = 120000, log = () => {},
+}) => {
+  const request = async (method, path, body, limit = timeoutMs) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), limit);
     try {
       const response = await fetchImpl(`${apiUrl}${path}`, {
         method,
@@ -396,6 +398,8 @@ export const createSyncEngine = ({ store, fetchImpl, apiUrl, createRemoteId, tim
     }
     try {
       upgradeLocalSyncState(store);
+      // Free hosts sleep when idle; give the first request time to wake the server (any HTTP status means it's up).
+      await request("GET", "/health", undefined, wakeTimeoutMs);
       await pushDeletes(result);
       for (const entity of SYNC_ORDER) {
         await push(entity, result);

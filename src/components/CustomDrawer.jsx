@@ -204,7 +204,10 @@ export default function CustomDrawerContent(props) {
         setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         Alert.alert("Sync Successful", "All local data is synchronized with the server.");
       } else if (result.offline) {
-        Alert.alert("Sync Offline", "Backend server currently unreachable. Changes are kept and will sync when online.");
+        Alert.alert(
+          "Sync Offline",
+          `Backend server currently unreachable. Changes are kept and will sync when online.\n\n${result.errors[0]?.message || ""}`,
+        );
       } else {
         Alert.alert(
           "Sync Incomplete",
