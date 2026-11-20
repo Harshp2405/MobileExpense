@@ -389,7 +389,9 @@ export const createSyncEngine = ({ store, fetchImpl, apiUrl, createRemoteId, tim
     const result = { ok: false, offline: false, pushed: 0, pulled: 0, removed: 0, deleted: 0, errors: [] };
     if (!apiUrl) {
       result.offline = true;
-      result.errors.push({ message: "Sync server URL is not configured (EXPO_PUBLIC_API_URL)" });
+      result.errors.push({
+        message: "Sync server URL is not configured (BACKEND_URL)",
+      });
       return result;
     }
     try {

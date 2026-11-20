@@ -30,7 +30,7 @@ export const formatINR = (val) =>
  * Resolves the server-side API Route URL for Expo Router.
  * Implements the server architecture shown in "How to send emails with Resend from your Expo app".
  * - On Web: relative "/api/send-email" (same origin)
- * - On Native: resolves dev host IP or EXPO_PUBLIC_API_URL in production
+ * - On Native: resolves dev host IP or BACKEND_URL in production
  */
 export const getSendEmailApiUrl = () => {
   if (Platform.OS === "web") {
@@ -48,7 +48,7 @@ export const getSendEmailApiUrl = () => {
       : "http://localhost:8081/api/send-email";
   }
 
-  const base = process.env.EXPO_PUBLIC_API_URL || "";
+  const base = process.env.BACKEND_URL || "";
   return base ? `${base}/api/send-email` : "/api/send-email";
 };
 

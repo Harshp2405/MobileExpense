@@ -7,12 +7,12 @@ import { getLocalSyncStore, isDatabaseReady, onLocalChange } from "./localStore"
 
 // ==========================================
 // 🌐 API URL RESOLVER
-// EXPO_PUBLIC_API_URL (e.g. https://<service>.onrender.com) wins; dev builds fall back to the
+// BACKEND_URL (e.g. https://<service>.onrender.com) wins; dev builds fall back to the
 // local backend on port 5000.
 // ==========================================
 
 const getApiUrl = () => {
-  const configured = (process.env.EXPO_PUBLIC_API_URL || "").trim().replace(/\/+$/, "");
+  const configured = (process.env.BACKEND_URL || "").trim().replace(/\/+$/, "");
   if (configured) return configured;
   if (__DEV__) {
     if (Platform.OS === "web") return "http://localhost:5000";

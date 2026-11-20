@@ -133,7 +133,7 @@ Affected rows become `pending`. A `404` on delete counts as already deleted. Row
 
 ## 🔄 Mobile Sync Manager (`src/lib/sync/syncManager.js`)
 
-- `API_URL`: `EXPO_PUBLIC_API_URL` (for example `https://<service>.onrender.com`). In development it falls back to the local backend on port 5000.
+- `API_URL`: `BACKEND_URL` (for example `https://<service>.onrender.com`). In development it falls back to the local backend on port 5000.
 - `syncAll()`: syncs every table. Concurrent calls share one pass, and a change made during a pass triggers one more pass. It never rejects; it resolves to `{ ok, offline, pushed, pulled, removed, deleted, errors }`.
 - `startAutoSync()`: called by [_layout.jsx](src/app/_layout.jsx) once the database is ready. It syncs when the device comes online, and 2 seconds after any local write (every mutation in [queries.js](src/lib/db/queries.js) calls `notifyLocalChange()`).
 - The drawer's manual sync reports success, offline, or how many items failed.
@@ -179,7 +179,7 @@ Create a Render **Web Service** (Node runtime) from the backend repository with 
 
 - Set the service's **Health Check Path** to `/health` so Render can verify new deploys.
 - Render's free web services spin down after 15 minutes without inbound traffic. Render's own health checks are for deploy and restart decisions, and are not documented as traffic that prevents spin-down. To keep the instance awake, configure an external monitor (for example UptimeRobot or cron-job.org) to request `https://<service>.onrender.com/health` at least every 10 minutes. A free instance can also restart at any time and has an ephemeral filesystem; this API stores nothing locally.
-- Mobile release builds need `EXPO_PUBLIC_API_URL=https://<service>.onrender.com`; without it a release build stays offline-only.
+- Mobile release builds need `BACKEND_URL=https://<service>.onrender.com`; without it a release build stays offline-only.
 - There is no authentication or per-user data isolation yet; add it before storing real financial data on a public URL.
 
 ---
