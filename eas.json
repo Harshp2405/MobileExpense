@@ -19,6 +19,7 @@
       "environment": "preview",
       "android": {
         "buildType": "apk",
+        "autoIncrement": true,
         "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       }
     },
@@ -27,7 +28,8 @@
       "environment": "production",
       "distribution": "store",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "autoIncrement": true
       }
     },
     "playstore": {
