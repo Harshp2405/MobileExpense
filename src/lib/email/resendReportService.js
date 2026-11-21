@@ -48,7 +48,12 @@ export const getSendEmailApiUrl = () => {
       : "http://localhost:8081/api/send-email";
   }
 
-  const base = process.env.BACKEND_URL || "";
+  const base = (
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_BACKEND_URL ||
+    process.env.BACKEND_URL ||
+    ""
+  ).trim().replace(/\/+$/, "");
   return base ? `${base}/api/send-email` : "/api/send-email";
 };
 

@@ -12,7 +12,12 @@ import { getLocalSyncStore, isDatabaseReady, onLocalChange } from "./localStore"
 // ==========================================
 
 const getApiUrl = () => {
-  const configured = (process.env.BACKEND_URL || "").trim().replace(/\/+$/, "");
+  const configured = (
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.EXPO_PUBLIC_BACKEND_URL ||
+    process.env.BACKEND_URL ||
+    ""
+  ).trim().replace(/\/+$/, "");
   if (configured) return configured;
   if (__DEV__) {
     if (Platform.OS === "web") return "http://localhost:5000";
